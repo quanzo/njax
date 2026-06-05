@@ -44,8 +44,8 @@ export class TaskManager {
 
     /**
      * Интервал периодического опроса ожидающих задач в миллисекундах.
-     * Задаёт период `setInterval` в `#ensurePolling` и минимальный интервал между
-     * фактическими запросами статуса в `#pollWaitingTasks`.
+     * Задаёт задержку `#scheduleNextPoll` между последовательными batch-запросами
+     * опроса `waitingTaskIds` после успешного flush.
      *
      * @type {number}
      */
@@ -124,13 +124,21 @@ export class TaskManager {
     #flushScheduled;
 
     /**
-     * Идентификатор таймера периодического опроса или `null`, если опрос не активен.
-     * Создаётся в `#ensurePolling`, останавливается в `#pollWaitingTasks` и `dispose`,
-     * когда не остаётся `waitingTaskIds`.
+     * Идентификатор отложенного таймера опроса или `null`, если опрос не запланирован.
+     * Перепланируется в `#scheduleNextPoll` после каждого успешного flush; останавливается
+     * в `#stopPolling` и `dispose`, когда не остаётся `waitingTaskIds`.
      *
-     * @type {ReturnType<typeof setInterval>|null}
+     * @type {ReturnType<typeof setTimeout>|null}
      */
-    #pollingTimer;
+    #pollTimer;
+
+    /**
+     * Короткая задержка повторного планирования опроса, если callback таймера сработал
+     * пока другой batch-запрос ещё в полёте (`#isRequestInFlight`).
+     *
+     * @type {number}
+     */
+    #pollRetryWhileInFlightMs;
 
     /**
      * Флаг «HTTP batch-запрос сейчас выполняется».
@@ -159,15 +167,6 @@ export class TaskManager {
     #retryTimer;
 
     /**
-     * Метка времени (`Date.now()`) последнего успешного batch-запроса в миллисекундах.
-     * Используется в `#pollWaitingTasks` для соблюдения `#statusCheckIntervalMs`
-     * между запросами проверки статуса.
-     *
-     * @type {number}
-     */
-    #lastStatusCheckAtMs;
-
-    /**
      * Конструктор.
      * Инициализирует транспортные параметры, буферы задач и внутренние таймеры.
      * Требует непустой `endpointUrl`; при отсутствии `fetchFn` использует глобальный `fetch`.
@@ -175,7 +174,7 @@ export class TaskManager {
      * @param {Object} options Параметры менеджера.
      * @param {string} options.endpointUrl URL endpoint для пакетных запросов задач.
      * @param {Function} [options.fetchFn] Пользовательская реализация fetch (для тестов или polyfill).
-     * @param {number} [options.statusCheckIntervalMs=3000] Интервал опроса ожидающих задач в мс.
+     * @param {number} [options.statusCheckIntervalMs=2000] Интервал опроса ожидающих задач в мс.
      * @param {number} [options.retryDelayMs=1000] Начальная задержка ретрая при ошибке сети в мс.
      * @param {number} [options.maxRetryDelayMs=15000] Максимальная задержка ретрая в мс.
      * @param {Function|null} [options.signRequest] Асинхронная функция подписи batch-пейлоада.
@@ -193,7 +192,7 @@ export class TaskManager {
             throw new Error("TaskManager requires fetchFn or global fetch.");
         }
 
-        this.#statusCheckIntervalMs = Number(options.statusCheckIntervalMs ?? 3000);
+        this.#statusCheckIntervalMs = Number(options.statusCheckIntervalMs ?? 2000);
         this.#baseRetryDelayMs = Number(options.retryDelayMs ?? 1000);
         this.#maxRetryDelayMs = Number(options.maxRetryDelayMs ?? 15000);
         this.#signRequest = typeof options.signRequest === "function" ? options.signRequest : null;
@@ -204,11 +203,11 @@ export class TaskManager {
         this.#cancelledTaskIds = new Set();
 
         this.#flushScheduled = false;
-        this.#pollingTimer = null;
+        this.#pollTimer = null;
+        this.#pollRetryWhileInFlightMs = 100;
         this.#isRequestInFlight = false;
         this.#nextRetryDelayMs = this.#baseRetryDelayMs;
         this.#retryTimer = null;
-        this.#lastStatusCheckAtMs = 0;
     }
 
     /**
@@ -273,7 +272,6 @@ export class TaskManager {
         }
 
         this.#scheduleFlush();
-        this.#ensurePolling();
 
         return fingerprint;
     }
@@ -365,9 +363,11 @@ export class TaskManager {
      * Освободить ресурсы менеджера.
      *
      * Собирает все ожидающие `taskId`, отправляет их в `cancelledTaskIds` на сервер,
-     * очищает буферы и останавливает таймеры опроса и ретрая. Рекомендуется вызывать
-     * при `beforeunload` или размонтировании SPA-компонента. Ошибка финального flush
-     * при закрытии страницы не прерывает локальную очистку.
+     * очищает буферы и останавливает таймеры опроса и ретрая. Перед финальным flush
+     * дожидается освобождения слота HTTP (`#waitForRequestSlot`), чтобы batch отмены
+     * не был пропущен из-за параллельного опроса `waitingTaskIds`. Рекомендуется
+     * вызывать при `beforeunload` или размонтировании SPA-компонента. Ошибка финального
+     * flush при закрытии страницы не прерывает локальную очистку.
      *
      * @returns {Promise<void>} Завершается после попытки отмены на сервере и очистки состояния.
      */
@@ -392,16 +392,14 @@ export class TaskManager {
 
         if (this.#cancelledTaskIds.size > 0) {
             try {
+                await this.#waitForRequestSlot();
                 await this.#flushPendingState();
             } catch (disposeFlushError) {
                 // При закрытии страницы сбой отмены не должен блокировать очистку клиента.
             }
         }
 
-        if (this.#pollingTimer) {
-            clearInterval(this.#pollingTimer);
-            this.#pollingTimer = null;
-        }
+        this.#stopPolling();
 
         if (this.#retryTimer) {
             clearTimeout(this.#retryTimer);
@@ -409,6 +407,24 @@ export class TaskManager {
         }
 
         this.#cancelledTaskIds.clear();
+    }
+
+    /**
+     * Дождаться освобождения слота HTTP-запроса.
+     *
+     * Используется в `dispose`, чтобы финальный batch отмены не был пропущен из-за
+     * параллельного `#flushPendingState` (например, microtask-опроса `waitingTaskIds`).
+     *
+     * @private
+     *
+     * @returns {Promise<void>}
+     */
+    async #waitForRequestSlot() {
+        const maxAttempts = 200;
+
+        for (let attempt = 0; attempt < maxAttempts && this.#isRequestInFlight; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+        }
     }
 
     /**
@@ -435,52 +451,49 @@ export class TaskManager {
     }
 
     /**
-     * Запустить периодический опрос ожидающих задач.
-     *
-     * Создаёт `setInterval`, если опрос ещё не активен. Интервал вызывает
-     * `#pollWaitingTasks`, который при отсутствии `waitingTaskIds` сам останавливает таймер.
+     * Остановить запланированный опрос ожидающих задач.
      *
      * @private
      *
      * @returns {void}
      */
-    #ensurePolling() {
-        if (this.#pollingTimer !== null) {
-            return;
+    #stopPolling() {
+        if (this.#pollTimer !== null) {
+            clearTimeout(this.#pollTimer);
+            this.#pollTimer = null;
         }
-
-        this.#pollingTimer = setInterval(() => {
-            void this.#pollWaitingTasks();
-        }, this.#statusCheckIntervalMs);
     }
 
     /**
-     * Выполнить цикл опроса статуса ожидающих задач.
+     * Запланировать следующий опрос `waitingTaskIds` через заданную задержку.
      *
-     * Останавливает `#pollingTimer`, если `#waitingTaskIds` пуст. Иначе проверяет,
-     * прошёл ли `#statusCheckIntervalMs` с `#lastStatusCheckAtMs`, и при необходимости
-     * инициирует `#flushPendingState` для опроса сервера.
+     * Сдвигает таймер после каждого успешного batch: пока запрос в полёте, callback
+     * не вызывает HTTP, а перепланирует короткий retry. Параллельные batch запрещены
+     * флагом `#isRequestInFlight` в `#flushPendingState`.
      *
      * @private
      *
-     * @returns {Promise<void>}
+     * @param {number} [delayMs] Задержка до следующего опроса в миллисекундах.
+     *
+     * @returns {void}
      */
-    async #pollWaitingTasks() {
+    #scheduleNextPoll(delayMs = this.#statusCheckIntervalMs) {
+        this.#stopPolling();
+
         if (this.#waitingTaskIds.size === 0) {
-            if (this.#pollingTimer !== null) {
-                clearInterval(this.#pollingTimer);
-                this.#pollingTimer = null;
+            return;
+        }
+
+        this.#pollTimer = setTimeout(() => {
+            this.#pollTimer = null;
+
+            if (this.#isRequestInFlight) {
+                this.#scheduleNextPoll(this.#pollRetryWhileInFlightMs);
+                return;
             }
 
-            return;
-        }
-
-        const nowMs = Date.now();
-        if (nowMs - this.#lastStatusCheckAtMs < this.#statusCheckIntervalMs) {
-            return;
-        }
-
-        await this.#flushPendingState();
+            void this.#flushPendingState();
+        }, delayMs);
     }
 
     /**
@@ -520,6 +533,8 @@ export class TaskManager {
             cancelledTaskIds: sentCancelledTaskIds,
         };
 
+        let flushSucceeded = false;
+
         try {
             this.#isRequestInFlight = true;
             if (this.#signRequest !== null) {
@@ -530,7 +545,7 @@ export class TaskManager {
             }
 
             const responsePayload = await this.#sendRequest(requestPayload);
-            this.#lastStatusCheckAtMs = Date.now();
+            flushSucceeded = true;
             this.#nextRetryDelayMs = this.#baseRetryDelayMs;
             this.#applyServerResponse(responsePayload, batchEntries, sentCancelledTaskIds);
             this.#resetRetryTimer();
@@ -543,6 +558,10 @@ export class TaskManager {
             this.#scheduleRetry();
         } finally {
             this.#isRequestInFlight = false;
+
+            if (flushSucceeded) {
+                this.#scheduleNextPoll();
+            }
         }
     }
 

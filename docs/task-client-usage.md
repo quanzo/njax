@@ -10,7 +10,7 @@
 
 - дедупликация одинаковых задач по методу и каноническому пейлоаду;
 - пакетирование нескольких задач в один запрос;
-- отслеживание id ожидающих задач и опрос статусов по таймеру;
+- отслеживание id ожидающих задач и опрос статусов по таймеру (по умолчанию каждые 2 с);
 - ретраи неудачных запросов с экспоненциальной задержкой;
 - повторная отправка задач, возвращенных в `unknownTasks`;
 - обработка `validationErrors` для задач, не прошедших серверную pre-enqueue валидацию;
@@ -38,7 +38,7 @@ import { TaskManager } from "./TaskManager.js";
 
 const manager = new TaskManager({
     endpointUrl: "/task-batch.php",
-    statusCheckIntervalMs: 3000,
+    statusCheckIntervalMs: 2000,
     retryDelayMs: 1000,
     maxRetryDelayMs: 15000,
 });
@@ -76,6 +76,75 @@ manager.submitTask(
 - `meta.fingerprint`: локальный fingerprint задачи.
 
 Если `callbackOnFail` не передан, при отклонении постановки pending-запись всё равно удаляется (задача не «зависает»), но прикладной код не уведомляется.
+
+## Несколько задач одним batch-запросом
+
+Отдельного метода «отправить пачку» нет: `TaskManager` **сам** собирает задачи в один HTTP POST.
+
+### Как это работает
+
+1. Каждый `submitTask` добавляет задачу во внутренний буфер `#pendingByFingerprint`.
+2. `#scheduleFlush()` планирует отправку в **microtask** (следующий тик event loop).
+3. Несколько вызовов `submitTask` **подряд в одном синхронном блоке** попадают в **один** flush.
+4. `#flushPendingState()` формирует один JSON с массивом `tasks[]` и отправляет его на endpoint.
+
+### Базовый пример
+
+```javascript
+manager.submitTask("echo", { value: 1 }, (r) => console.log("echo 1", r));
+manager.submitTask("sum", { numbers: [1, 2, 3] }, (r) => console.log("sum", r));
+manager.submitTask("echo", { value: 2 }, (r) => console.log("echo 2", r));
+
+// Один POST: tasks: [ echo{1}, sum{...}, echo{2} ]
+```
+
+### Дедупликация внутри batch
+
+Задачи с одинаковым `method` и канонически эквивалентным `payload` объединяются в **одну** серверную задачу, но сохраняют **несколько** колбэков (и `callbackOnFail`):
+
+```javascript
+manager.submitTask("echo", { value: 1 }, (r) => updateWidgetA(r));
+manager.submitTask("echo", { value: 1 }, (r) => updateWidgetB(r));
+
+// В tasks[] уйдёт одна задача echo; оба колбэка получат один результат.
+```
+
+Разные `method` или `payload` → отдельные элементы в `tasks[]`. Порядок ключей в объекте не влияет (`{a:1,b:2}` и `{b:2,a:1}` — один fingerprint).
+
+### Принудительная отправка
+
+Чтобы не ждать microtask:
+
+```javascript
+manager.submitTask("echo", { value: 10 }, onOk1);
+manager.submitTask("sum", { numbers: [5, 7] }, onOk2);
+await manager.forceFlush(); // один batch-запрос сразу
+```
+
+### Когда уйдёт несколько HTTP-запросов
+
+Задачи попадут в **разные** запросы, если между `submitTask` первый flush уже успел выполниться:
+
+```javascript
+manager.submitTask("echo", { value: 1 }, cb1);
+await manager.forceFlush(); // запрос 1
+
+manager.submitTask("sum", { numbers: [1, 2] }, cb2);
+await manager.forceFlush(); // запрос 2
+```
+
+То же при `await`, `setTimeout` или другой асинхронной паузе между вызовами `submitTask`: microtask может отправить накопленный буфер раньше, чем будут поставлены остальные задачи.
+
+**Чтобы гарантировать один запрос:** все `submitTask` в одном синхронном блоке, затем при необходимости `await manager.forceFlush()`.
+
+### Комбинированный batch
+
+В один POST могут попасть не только новые задачи, но и:
+
+- `waitingTaskIds` — опрос уже поставленных задач;
+- `cancelledTaskIds` — отмена задач, которые клиент больше не ждёт.
+
+Типичный сценарий: новые `tasks` + опрос предыдущих `taskId` + отмена ненужных id — всё в одном batch, как описано в [`task-system-architecture.md`](task-system-architecture.md).
 
 ## Пример хука подписи
 
@@ -118,6 +187,23 @@ manager.cancelTasksByIds(["task-000001"]);
 - если `taskId` ещё не назначен — задача удаляется только локально;
 - если `taskId` уже есть — id добавляется в `cancelledTaskIds` следующего batch-запроса;
 - колбэки отменённой задачи **не вызываются**.
+
+## Опрос статуса ожидающих задач
+
+После постановки задачи первый batch-запрос уходит **сразу** (через microtask после `submitTask`). Дальнейший опрос уже принятых `taskId` (`waitingTaskIds`) выполняется по таймеру.
+
+| Параметр | Значение по умолчанию | Назначение |
+|----------|----------------------|------------|
+| `statusCheckIntervalMs` | **2000** (2 с) | Минимальный интервал между batch-запросами, проверяющими статус ожидающих задач |
+
+Поведение:
+
+- после каждого **успешного** batch-запроса планируется `setTimeout` на `statusCheckIntervalMs` до следующего опроса (таймер **сдвигается** от момента ответа);
+- отправка новых `tasks` в том же batch уже включает `waitingTaskIds` — отсчёт 2 с начинается заново после этого ответа;
+- **не более одного** HTTP batch-запроса одновременно (`#isRequestInFlight`); если callback таймера сработал во время полёта запроса, опрос перепланируется без параллельного `fetch`;
+- когда ожидающих id не остаётся, таймер опроса останавливается.
+
+Первую **постановку** новой задачи интервал опроса не задерживает — только получение **результата** уже поставленной задачи.
 
 ## Ручная отправка буфера и освобождение ресурсов
 
@@ -172,3 +258,24 @@ manager.submitTask(
 - исправлять параметры и отправлять задачу повторно отдельным вызовом `submitTask`.
 
 Примечание: HTTP-ошибки всего batch (4xx/5xx) по-прежнему обрабатываются ретраями; `callbackOnFail` для них не вызывается.
+
+## Тестирование клиента
+
+Client-тесты расположены в `tests/client/` и запускаются через `node:test` (без npm).
+
+```bash
+# Все client-тесты (75)
+./scripts/run-client-tests.sh
+
+# Один файл
+node --test tests/client/TaskManagerPolling.test.mjs
+```
+
+Инфраструктура:
+
+- `tests/client/helpers/MockFetchFactory.mjs` — mock `fetch`, журнал тел batch-запросов;
+- `tests/client/helpers/TaskManagerTestContext.mjs` — `createManager()`, `syncFlush`, `disposeAll`.
+
+Полный каталог сценариев (75 тестов в 9 файлах): [tests-overview-js.md](tests-overview-js.md).
+
+При изменении `TaskManager.js` или client-тестов обновляйте `docs/tests-overview-js.md`.

@@ -140,6 +140,8 @@ JSON запроса `POST /task/batch`:
 
 ## Политика ретраев и повторной отправки (клиент)
 
+- Несколько вызовов `submitTask` в одном синхронном блоке автоматически упаковываются в один HTTP batch; подробности — в [`task-client-usage.md`](task-client-usage.md) (секция «Несколько задач одним batch-запросом»).
+- Опрос `waitingTaskIds` по умолчанию каждые **2 с** (`statusCheckIntervalMs: 2000`) через цепочку `setTimeout`, перепланируемую после каждого успешного batch; параллельные HTTP-запросы запрещены; первая постановка новой задачи уходит без этой задержки (microtask после `submitTask`).
 - Сетевые ошибки или ошибки endpoint запускают ретрай с экспоненциальной задержкой.
 - Ответ с `unknownTasks` запускает локальную повторную постановку неразрешенных задач в очередь.
 - Дедуплицированные колбэки остаются привязанными и срабатывают после получения результата.
@@ -325,4 +327,9 @@ Namespace: `app\njax\exceptions\<group>\<ClassName>`.
 
 ## Тестирование
 
-Справочник всех тестов с навигацией по сценариям: [tests-overview.md](tests-overview.md).
+| Слой | Runner | Справочник |
+|------|--------|------------|
+| PHP (endpoint, DTO, команды) | `./vendor/bin/phpunit` | [tests-overview.md](tests-overview.md) — 81 тест |
+| JS (`TaskManager.js`) | `./scripts/run-client-tests.sh` | [tests-overview-js.md](tests-overview-js.md) — 75 тестов |
+
+Client-тесты проверяют контракт batch-запроса с клиентской стороны: `tasks`, `waitingTaskIds`, `cancelledTaskIds`, single-flight HTTP, опрос по `#scheduleNextPoll`, ретраи и `dispose`.

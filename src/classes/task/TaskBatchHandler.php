@@ -6,11 +6,14 @@ namespace app\njax\classes\task;
 
 use app\njax\classes\dto\task\response\AcceptedTaskCollectionDto;
 use app\njax\classes\dto\task\response\AcceptedTaskDto;
+use app\njax\classes\dto\task\response\CancelledTaskCollectionDto;
+use app\njax\classes\dto\task\response\CancelledTaskDto;
 use app\njax\classes\dto\security\AuthorizationRequestDto;
 use app\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
 use app\njax\classes\dto\task\response\CompletedTaskCollectionDto;
 use app\njax\classes\dto\http\RequestContextDto;
 use app\njax\classes\dto\task\queue\StoredTaskResultDto;
+use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
 use app\njax\classes\dto\task\response\TaskBatchResponseDto;
 use app\njax\classes\dto\task\response\UnknownTaskCollectionDto;
 use app\njax\classes\dto\task\response\UnknownTaskDto;
@@ -31,9 +34,10 @@ use app\njax\interfaces\task\retention\TaskResultRetentionProviderInterface;
  *
  * Класс координирует:
  * - проверки безопасности (auth + signature);
+ * - отмену задач, которые клиент больше не ждёт;
  * - исполнение уже поставленных в очередь задач;
  * - частичное принятие новых задач с командной валидацией;
- * - сбор готовых/неизвестных результатов для клиента.
+ * - сбор готовых/отменённых/неизвестных результатов для клиента.
  */
 final class TaskBatchHandler
 {
@@ -112,15 +116,22 @@ final class TaskBatchHandler
         $this->assertSignatureValid($request, $context);
 
         $this->taskResultRetentionProvider->cleanupExpired($checkedAt);
+        $cancelledTasks = $this->processCancelledTasks($request->getCancelledTaskIds(), $checkedAt);
         $this->executePendingTasks($checkedAt);
 
         [$acceptedTasks, $validationErrors] = $this->enqueueNewTasks($request);
-        $completedTasks = $this->taskResultRetentionProvider->getCompletedByIds($request->getWaitingTaskIds(), $checkedAt);
+        $cancelledTasks = $this->mergeCancelledTaskCollections(
+            $cancelledTasks,
+            $this->processCancelledTasks($request->getCancelledTaskIds(), $checkedAt)
+        );
+        $waitingTaskIds = $this->filterWaitingTaskIdsExcludingCancelled($request);
+        $completedTasks = $this->taskResultRetentionProvider->getCompletedByIds($waitingTaskIds, $checkedAt);
         $unknownTasks = $this->resolveUnknownTasks($request, $checkedAt, $completedTasks);
 
         return new TaskBatchResponseDto(
             $acceptedTasks,
             $completedTasks,
+            $cancelledTasks,
             $unknownTasks,
             $validationErrors,
             $checkedAt
@@ -250,6 +261,104 @@ final class TaskBatchHandler
     }
 
     /**
+     * Отменяет задачи из запроса до извлечения очереди на исполнение.
+     *
+     * @param TaskIdCollectionDto $cancelledTaskIds Идентификаторы задач для отмены.
+     * @param \DateTimeImmutable $checkedAt Текущее время проверки.
+     *
+     * @return CancelledTaskCollectionDto
+     */
+    private function processCancelledTasks(
+        TaskIdCollectionDto $cancelledTaskIds,
+        \DateTimeImmutable $checkedAt
+    ): CancelledTaskCollectionDto {
+        $cancelledTasks = new CancelledTaskCollectionDto();
+
+        foreach ($cancelledTaskIds as $taskId) {
+            $wasCancelled = $this->taskQueueProvider->cancelPending($taskId)
+                || $this->taskResultRetentionProvider->discardResult($taskId, $checkedAt);
+
+            if ($wasCancelled === false) {
+                continue;
+            }
+
+            $cancelledTasks = $cancelledTasks->withItem(new CancelledTaskDto($taskId));
+        }
+
+        return $cancelledTasks;
+    }
+
+    /**
+     * Объединяет две коллекции отменённых задач без дублирования taskId.
+     *
+     * @param CancelledTaskCollectionDto $primary Основная коллекция отменённых задач.
+     * @param CancelledTaskCollectionDto $additional Дополнительная коллекция отменённых задач.
+     *
+     * @return CancelledTaskCollectionDto
+     */
+    private function mergeCancelledTaskCollections(
+        CancelledTaskCollectionDto $primary,
+        CancelledTaskCollectionDto $additional
+    ): CancelledTaskCollectionDto {
+        $merged = $primary;
+        $knownTaskIds = [];
+
+        foreach ($primary as $cancelledTask) {
+            $knownTaskIds[$cancelledTask->getTaskId()->toString()] = true;
+        }
+
+        foreach ($additional as $cancelledTask) {
+            $taskIdValue = $cancelledTask->getTaskId()->toString();
+            if (array_key_exists($taskIdValue, $knownTaskIds)) {
+                continue;
+            }
+
+            $knownTaskIds[$taskIdValue] = true;
+            $merged = $merged->withItem($cancelledTask);
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Исключает id из waitingTaskIds, которые отменены в текущем batch-запросе.
+     *
+     * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
+     *
+     * @return TaskIdCollectionDto
+     */
+    private function filterWaitingTaskIdsExcludingCancelled(ClientTaskBatchRequestDto $request): TaskIdCollectionDto
+    {
+        $cancelledByTaskId = $this->buildCancelledTaskIdLookup($request);
+        $filteredTaskIds = [];
+
+        foreach ($request->getWaitingTaskIds() as $waitingTaskId) {
+            if (array_key_exists($waitingTaskId->toString(), $cancelledByTaskId)) {
+                continue;
+            }
+
+            $filteredTaskIds[] = $waitingTaskId;
+        }
+
+        return new TaskIdCollectionDto($filteredTaskIds);
+    }
+
+    /**
+     * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
+     *
+     * @return array<string, bool>
+     */
+    private function buildCancelledTaskIdLookup(ClientTaskBatchRequestDto $request): array
+    {
+        $cancelledByTaskId = [];
+        foreach ($request->getCancelledTaskIds() as $cancelledTaskId) {
+            $cancelledByTaskId[$cancelledTaskId->toString()] = true;
+        }
+
+        return $cancelledByTaskId;
+    }
+
+    /**
      * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
      * @param \DateTimeImmutable $checkedAt Текущее время проверки.
      * @param CompletedTaskCollectionDto $completedTasks Коллекция завершенных задач.
@@ -266,9 +375,14 @@ final class TaskBatchHandler
             $completedByTaskId[$completedTask->getTaskId()->toString()] = true;
         }
 
+        $cancelledByTaskId = $this->buildCancelledTaskIdLookup($request);
         $unknownTasks = new UnknownTaskCollectionDto();
         foreach ($request->getWaitingTaskIds() as $waitingTaskId) {
             $taskIdValue = $waitingTaskId->toString();
+            if (array_key_exists($taskIdValue, $cancelledByTaskId)) {
+                continue;
+            }
+
             if (array_key_exists($taskIdValue, $completedByTaskId)) {
                 continue;
             }

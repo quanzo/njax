@@ -25,6 +25,7 @@
 * `src/` - исходный код
 * `src/commands` - прикладные команды task-endpoint (`EchoTaskCommand`, `SumTaskCommand`, namespace `app\njax\commands`)
 * `src/classes/commands` - базовый класс и реестр команд (`AbstractTaskCommand`, `TaskCommandRegistry`, namespace `app\njax\classes\commands`)
+* batch-контракт: `tasks` (новые задачи), `waitingTaskIds` (опрос), `cancelledTaskIds` (отмена)
 * `src/classes/dto` - DTO (подкаталоги: `http/`, `security/`, `task/request/`, `task/response/`, `task/queue/`)
 * `src/classes` - корневой каталог классов (task, adapters, providers)
 * `src/enums` - перечисления enums

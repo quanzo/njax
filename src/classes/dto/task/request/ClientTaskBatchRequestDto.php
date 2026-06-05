@@ -12,9 +12,9 @@ use app\njax\traits\serialization\ArrayableFromJsonTrait;
 
 /**
  * DTO пакетного запроса задач клиента.
- * Описывает один клиентский запрос, содержащий новые задачи и идентификаторы ожидающих задач.
+ * Описывает один клиентский запрос: новые задачи, опрос ожидающих и отмена ненужных id.
  * Пример:
- * $request = new ClientTaskBatchRequestDto($tasks, $waitingIds, new \DateTimeImmutable('now'));
+ * $request = new ClientTaskBatchRequestDto($tasks, $waitingIds, $cancelledIds, new \DateTimeImmutable('now'));
  */
 final class ClientTaskBatchRequestDto implements IJsonArrayable
 {
@@ -29,6 +29,11 @@ final class ClientTaskBatchRequestDto implements IJsonArrayable
      * @var TaskIdCollectionDto
      */
     private TaskIdCollectionDto $waitingTaskIds;
+
+    /**
+     * @var TaskIdCollectionDto
+     */
+    private TaskIdCollectionDto $cancelledTaskIds;
 
     /**
      * @var \DateTimeImmutable
@@ -46,17 +51,20 @@ final class ClientTaskBatchRequestDto implements IJsonArrayable
      *
      * @param TaskDefinitionCollectionDto $tasks Новые задачи для помещения в очередь.
      * @param TaskIdCollectionDto $waitingTaskIds Идентификаторы ожидающих задач для проверки.
+     * @param TaskIdCollectionDto $cancelledTaskIds Идентификаторы задач, которые клиент больше не ждёт.
      * @param \DateTimeImmutable $submittedAt Клиентская метка времени создания запроса.
      * @param RequestSignatureDto|null $signature Опциональные данные подписи.
      */
     public function __construct(
         TaskDefinitionCollectionDto $tasks,
         TaskIdCollectionDto $waitingTaskIds,
+        TaskIdCollectionDto $cancelledTaskIds,
         \DateTimeImmutable $submittedAt,
         ?RequestSignatureDto $signature = null
     ) {
         $this->tasks = $tasks;
         $this->waitingTaskIds = $waitingTaskIds;
+        $this->cancelledTaskIds = $cancelledTaskIds;
         $this->submittedAt = $submittedAt;
         $this->signature = $signature;
     }
@@ -81,6 +89,17 @@ final class ClientTaskBatchRequestDto implements IJsonArrayable
     public function getWaitingTaskIds(): TaskIdCollectionDto
     {
         return $this->waitingTaskIds;
+    }
+
+    /**
+     * Получить отменённые id.
+     * Возвращает идентификаторы задач, которые клиент запросил отменить.
+     *
+     * @return TaskIdCollectionDto
+     */
+    public function getCancelledTaskIds(): TaskIdCollectionDto
+    {
+        return $this->cancelledTaskIds;
     }
 
     /**
@@ -122,6 +141,7 @@ final class ClientTaskBatchRequestDto implements IJsonArrayable
             'submittedAt' => $this->submittedAt->format(\DateTimeInterface::ATOM),
             'tasks' => $serializedTasks,
             'waitingTaskIds' => $this->waitingTaskIds->toJsonArray(),
+            'cancelledTaskIds' => $this->cancelledTaskIds->toJsonArray(),
         ];
 
         if ($this->signature !== null) {

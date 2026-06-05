@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Тест маппера запроса пакетной обработки задач.
- * Покрывает валидацию пейлоада запроса на валидных, невалидных и граничных наборах данных (13 кейсов).
+ * Покрывает валидацию пейлоада запроса на валидных, невалидных и граничных наборах данных (17 кейсов).
  * Пример:
  * ./vendor/bin/phpunit --filter TaskBatchRequestMapperTest
  */
@@ -85,6 +85,28 @@ final class TaskBatchRequestMapperTest extends TestCase
                 true,
                 null,
             ],
+            'valid_cancelled_only' => [
+                [
+                    'submittedAt' => '2026-06-04T12:00:00+00:00',
+                    'tasks' => [],
+                    'waitingTaskIds' => [],
+                    'cancelledTaskIds' => ['task-000002'],
+                ],
+                true,
+                null,
+            ],
+            'valid_combined_all_three' => [
+                [
+                    'submittedAt' => '2026-06-04T12:00:00+00:00',
+                    'tasks' => [
+                        ['method' => 'echo', 'payload' => ['value' => 1]],
+                    ],
+                    'waitingTaskIds' => ['task-000001'],
+                    'cancelledTaskIds' => ['task-000002'],
+                ],
+                true,
+                null,
+            ],
             'missing_submitted_at' => [
                 [
                     'tasks' => [['method' => 'echo', 'payload' => null]],
@@ -120,6 +142,16 @@ final class TaskBatchRequestMapperTest extends TestCase
                 false,
                 'waitingTaskIds must be an array.',
             ],
+            'cancelled_ids_not_array' => [
+                [
+                    'submittedAt' => '2026-06-04T12:00:00+00:00',
+                    'tasks' => [],
+                    'waitingTaskIds' => [],
+                    'cancelledTaskIds' => 'task-1',
+                ],
+                false,
+                'cancelledTaskIds must be an array.',
+            ],
             'task_item_not_object' => [
                 [
                     'submittedAt' => '2026-06-04T12:00:00+00:00',
@@ -147,6 +179,16 @@ final class TaskBatchRequestMapperTest extends TestCase
                 false,
                 'waitingTaskIds entry must be a string at index 0.',
             ],
+            'cancelled_id_not_string' => [
+                [
+                    'submittedAt' => '2026-06-04T12:00:00+00:00',
+                    'tasks' => [],
+                    'waitingTaskIds' => [],
+                    'cancelledTaskIds' => [123],
+                ],
+                false,
+                'cancelledTaskIds entry must be a string at index 0.',
+            ],
             'signature_not_object' => [
                 [
                     'submittedAt' => '2026-06-04T12:00:00+00:00',
@@ -167,14 +209,15 @@ final class TaskBatchRequestMapperTest extends TestCase
                 false,
                 'signature must contain string keyId and hash.',
             ],
-            'empty_tasks_and_waiting' => [
+            'empty_all_arrays' => [
                 [
                     'submittedAt' => '2026-06-04T12:00:00+00:00',
                     'tasks' => [],
                     'waitingTaskIds' => [],
+                    'cancelledTaskIds' => [],
                 ],
                 false,
-                'At least one task or waitingTaskId must be provided.',
+                'At least one task, waitingTaskId or cancelledTaskId must be provided.',
             ],
         ];
     }

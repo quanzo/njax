@@ -14,6 +14,7 @@ use app\njax\traits\serialization\ArrayableFromJsonTrait;
  * В ответе одновременно возвращаются:
  * - список принятых задач;
  * - список готовых результатов;
+ * - список отменённых задач;
  * - список неизвестных идентификаторов;
  * - список ошибок валидации задач (режим partial accept);
  * - серверная метка времени проверки.
@@ -33,6 +34,11 @@ final class TaskBatchResponseDto implements IJsonArrayable
     private CompletedTaskCollectionDto $completedTasks;
 
     /**
+     * @var CancelledTaskCollectionDto
+     */
+    private CancelledTaskCollectionDto $cancelledTasks;
+
+    /**
      * @var UnknownTaskCollectionDto
      */
     private UnknownTaskCollectionDto $unknownTasks;
@@ -50,6 +56,7 @@ final class TaskBatchResponseDto implements IJsonArrayable
     /**
      * @param AcceptedTaskCollectionDto $acceptedTasks Новые принятые задачи.
      * @param CompletedTaskCollectionDto $completedTasks Задачи с готовым результатом.
+     * @param CancelledTaskCollectionDto $cancelledTasks Задачи, успешно отменённые сервером.
      * @param UnknownTaskCollectionDto $unknownTasks Неизвестные id задач.
      * @param ValidationErrorCollectionDto $validationErrors Ошибки валидации задач в режиме partial accept.
      * @param \DateTimeImmutable $checkedAt Метка времени проверки на сервере.
@@ -57,12 +64,14 @@ final class TaskBatchResponseDto implements IJsonArrayable
     public function __construct(
         AcceptedTaskCollectionDto $acceptedTasks,
         CompletedTaskCollectionDto $completedTasks,
+        CancelledTaskCollectionDto $cancelledTasks,
         UnknownTaskCollectionDto $unknownTasks,
         ValidationErrorCollectionDto $validationErrors,
         \DateTimeImmutable $checkedAt
     ) {
         $this->acceptedTasks = $acceptedTasks;
         $this->completedTasks = $completedTasks;
+        $this->cancelledTasks = $cancelledTasks;
         $this->unknownTasks = $unknownTasks;
         $this->validationErrors = $validationErrors;
         $this->checkedAt = $checkedAt;
@@ -82,6 +91,14 @@ final class TaskBatchResponseDto implements IJsonArrayable
     public function getCompletedTasks(): CompletedTaskCollectionDto
     {
         return $this->completedTasks;
+    }
+
+    /**
+     * @return CancelledTaskCollectionDto
+     */
+    public function getCancelledTasks(): CancelledTaskCollectionDto
+    {
+        return $this->cancelledTasks;
     }
 
     /**
@@ -117,6 +134,7 @@ final class TaskBatchResponseDto implements IJsonArrayable
             'checkedAt' => $this->checkedAt->format(\DateTimeInterface::ATOM),
             'acceptedTasks' => JsonArrayableHelper::toJsonArray($this->acceptedTasks),
             'completedTasks' => JsonArrayableHelper::toJsonArray($this->completedTasks),
+            'cancelledTasks' => JsonArrayableHelper::toJsonArray($this->cancelledTasks),
             'unknownTasks' => JsonArrayableHelper::toJsonArray($this->unknownTasks),
             'validationErrors' => JsonArrayableHelper::toJsonArray($this->validationErrors),
         ];

@@ -42,13 +42,14 @@ final class TaskBatchRequestMapper
 
         $tasks = $this->mapTasks($payload);
         $waitingTaskIds = $this->mapWaitingTaskIds($payload);
+        $cancelledTaskIds = $this->mapCancelledTaskIds($payload);
         $signature = $this->mapSignature($payload);
 
-        if ($tasks->isEmpty() && $waitingTaskIds->isEmpty()) {
-            throw new ValidationException('At least one task or waitingTaskId must be provided.');
+        if ($tasks->isEmpty() && $waitingTaskIds->isEmpty() && $cancelledTaskIds->isEmpty()) {
+            throw new ValidationException('At least one task, waitingTaskId or cancelledTaskId must be provided.');
         }
 
-        return new ClientTaskBatchRequestDto($tasks, $waitingTaskIds, $submittedAt, $signature);
+        return new ClientTaskBatchRequestDto($tasks, $waitingTaskIds, $cancelledTaskIds, $submittedAt, $signature);
     }
 
     /**
@@ -104,6 +105,33 @@ final class TaskBatchRequestMapper
         foreach ($rawIds as $index => $rawId) {
             if (is_string($rawId) === false) {
                 throw new ValidationException('waitingTaskIds entry must be a string at index ' . $index . '.');
+            }
+
+            $taskIds[] = new TaskId($rawId);
+        }
+
+        return new TaskIdCollectionDto($taskIds);
+    }
+
+    /**
+     * Преобразовать отменённые идентификаторы.
+     * Преобразует пейлоад cancelledTaskIds в коллекцию value-object.
+     *
+     * @param array<string, mixed> $payload Декодированный JSON-пейлоад.
+     *
+     * @return TaskIdCollectionDto
+     */
+    private function mapCancelledTaskIds(array $payload): TaskIdCollectionDto
+    {
+        $rawIds = $payload['cancelledTaskIds'] ?? [];
+        if (is_array($rawIds) === false) {
+            throw new ValidationException('cancelledTaskIds must be an array.');
+        }
+
+        $taskIds = [];
+        foreach ($rawIds as $index => $rawId) {
+            if (is_string($rawId) === false) {
+                throw new ValidationException('cancelledTaskIds entry must be a string at index ' . $index . '.');
             }
 
             $taskIds[] = new TaskId($rawId);

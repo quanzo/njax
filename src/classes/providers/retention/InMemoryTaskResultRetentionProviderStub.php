@@ -130,4 +130,27 @@ final class InMemoryTaskResultRetentionProviderStub implements TaskResultRetenti
             $this->expiredTaskIds[$taskId] = true;
         }
     }
+
+    /**
+     * Удалить сохранённый результат.
+     * Удаляет неистёкший результат задачи из in-memory хранилища.
+     *
+     * @param TaskId $taskId Идентификатор задачи.
+     * @param \DateTimeImmutable $checkedAt Метка времени для проверки TTL.
+     *
+     * @return bool
+     */
+    public function discardResult(TaskId $taskId, \DateTimeImmutable $checkedAt): bool
+    {
+        $this->cleanupExpired($checkedAt);
+        $taskIdValue = $taskId->toString();
+        if (array_key_exists($taskIdValue, $this->resultByTaskId) === false) {
+            return false;
+        }
+
+        unset($this->resultByTaskId[$taskIdValue]);
+        unset($this->expiredTaskIds[$taskIdValue]);
+
+        return true;
+    }
 }

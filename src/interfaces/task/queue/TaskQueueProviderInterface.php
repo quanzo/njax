@@ -55,4 +55,14 @@ interface TaskQueueProviderInterface
      * @return TaskIdCollectionDto
      */
     public function filterPending(TaskIdCollectionDto $taskIds): TaskIdCollectionDto;
+
+    /**
+     * Отменить ожидающую задачу.
+     * Удаляет задачу из очереди ожидания, если она ещё не взята в работу.
+     *
+     * @param TaskId $taskId Идентификатор задачи.
+     *
+     * @return bool true, если задача была в очереди и удалена.
+     */
+    public function cancelPending(TaskId $taskId): bool;
 }

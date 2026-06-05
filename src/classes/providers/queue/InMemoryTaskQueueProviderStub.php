@@ -104,4 +104,24 @@ final class InMemoryTaskQueueProviderStub implements TaskQueueProviderInterface
 
         return new TaskIdCollectionDto($pendingIds);
     }
+
+    /**
+     * Отменить ожидающую задачу.
+     * Удаляет задачу из in-memory очереди ожидания.
+     *
+     * @param TaskId $taskId Идентификатор задачи.
+     *
+     * @return bool
+     */
+    public function cancelPending(TaskId $taskId): bool
+    {
+        $taskIdValue = $taskId->toString();
+        if (array_key_exists($taskIdValue, $this->pendingByTaskId) === false) {
+            return false;
+        }
+
+        unset($this->pendingByTaskId[$taskIdValue]);
+
+        return true;
+    }
 }

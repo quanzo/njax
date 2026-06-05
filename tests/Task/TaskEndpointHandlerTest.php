@@ -208,6 +208,156 @@ final class TaskEndpointHandlerTest extends TestCase
     }
 
     /**
+     * Проверяет отмену pending-задачи до её исполнения.
+     */
+    public function testCancelPendingBeforeExecution(): void
+    {
+        // Задача ставится в очередь, затем отменяется отдельным batch до drain/execute.
+        $handler = $this->createEndpointHandler(false, false, 60, '/task/batch');
+        $firstRequest = $this->createRequestDto('/task/batch', 'POST', $this->buildBasePayloadJson(), null);
+        $firstResponse = $handler->handle($firstRequest);
+        $firstBody = $this->decodeResponseBody($firstResponse->getBody());
+        $taskId = $firstBody['acceptedTasks'][0]['taskId'];
+
+        $cancelPayload = [
+            'submittedAt' => '2026-06-05T08:08:00+00:00',
+            'tasks' => [],
+            'waitingTaskIds' => [],
+            'cancelledTaskIds' => [$taskId],
+        ];
+        $cancelRequest = $this->createRequestDto(
+            '/task/batch',
+            'POST',
+            (string) json_encode($cancelPayload),
+            null
+        );
+        $cancelResponse = $handler->handle($cancelRequest);
+        $cancelBody = $this->decodeResponseBody($cancelResponse->getBody());
+
+        $pollPayload = [
+            'submittedAt' => '2026-06-05T08:08:30+00:00',
+            'tasks' => [],
+            'waitingTaskIds' => [$taskId],
+            'cancelledTaskIds' => [],
+        ];
+        $pollRequest = $this->createRequestDto('/task/batch', 'POST', (string) json_encode($pollPayload), null);
+        $pollResponse = $handler->handle($pollRequest);
+        $pollBody = $this->decodeResponseBody($pollResponse->getBody());
+
+        $this->assertSame(200, $cancelResponse->getStatusCode());
+        $this->assertCount(1, $cancelBody['cancelledTasks']);
+        $this->assertSame($taskId, $cancelBody['cancelledTasks'][0]['taskId']);
+        $this->assertCount(0, $cancelBody['completedTasks']);
+        $this->assertCount(1, $pollBody['unknownTasks']);
+        $this->assertSame('task_not_found', $pollBody['unknownTasks'][0]['reason']);
+    }
+
+    /**
+     * Проверяет удаление сохранённого результата при отмене.
+     */
+    public function testCancelDiscardsStoredResult(): void
+    {
+        // После выполнения задачи отмена удаляет результат из retention.
+        $handler = $this->createEndpointHandler(false, false, 60, '/task/batch');
+        $firstRequest = $this->createRequestDto('/task/batch', 'POST', $this->buildBasePayloadJson(), null);
+        $firstResponse = $handler->handle($firstRequest);
+        $firstBody = $this->decodeResponseBody($firstResponse->getBody());
+        $taskId = $firstBody['acceptedTasks'][0]['taskId'];
+
+        $executePayload = [
+            'submittedAt' => '2026-06-05T08:09:00+00:00',
+            'tasks' => [],
+            'waitingTaskIds' => [$taskId],
+            'cancelledTaskIds' => [],
+        ];
+        $handler->handle($this->createRequestDto('/task/batch', 'POST', (string) json_encode($executePayload), null));
+
+        $cancelPayload = [
+            'submittedAt' => '2026-06-05T08:09:30+00:00',
+            'tasks' => [],
+            'waitingTaskIds' => [],
+            'cancelledTaskIds' => [$taskId],
+        ];
+        $cancelResponse = $handler->handle(
+            $this->createRequestDto('/task/batch', 'POST', (string) json_encode($cancelPayload), null)
+        );
+        $cancelBody = $this->decodeResponseBody($cancelResponse->getBody());
+
+        $pollResponse = $handler->handle(
+            $this->createRequestDto('/task/batch', 'POST', (string) json_encode($executePayload), null)
+        );
+        $pollBody = $this->decodeResponseBody($pollResponse->getBody());
+
+        $this->assertCount(1, $cancelBody['cancelledTasks']);
+        $this->assertCount(1, $pollBody['unknownTasks']);
+        $this->assertSame('task_not_found', $pollBody['unknownTasks'][0]['reason']);
+    }
+
+    /**
+     * Проверяет комбинированный batch с tasks, waitingTaskIds и cancelledTaskIds.
+     */
+    public function testCancelledCombinedBatch(): void
+    {
+        // Одна задача завершается, вторая отменяется, третья ставится в очередь.
+        $handler = $this->createEndpointHandler(false, false, 60, '/task/batch');
+        $firstPayload = $this->buildBasePayloadArray();
+        $firstPayload['tasks'][] = ['method' => 'echo', 'payload' => ['value' => 20]];
+        $firstRequest = $this->createRequestDto('/task/batch', 'POST', (string) json_encode($firstPayload), null);
+        $firstResponse = $handler->handle($firstRequest);
+        $firstBody = $this->decodeResponseBody($firstResponse->getBody());
+
+        $waitingTaskId = $firstBody['acceptedTasks'][0]['taskId'];
+        $cancelTaskId = $firstBody['acceptedTasks'][1]['taskId'];
+        $combinedPayload = [
+            'submittedAt' => '2026-06-05T08:10:00+00:00',
+            'tasks' => [
+                ['method' => 'sum', 'payload' => ['numbers' => [1, 2]]],
+            ],
+            'waitingTaskIds' => [$waitingTaskId],
+            'cancelledTaskIds' => [$cancelTaskId],
+        ];
+        $combinedResponse = $handler->handle(
+            $this->createRequestDto('/task/batch', 'POST', (string) json_encode($combinedPayload), null)
+        );
+        $combinedBody = $this->decodeResponseBody($combinedResponse->getBody());
+
+        $this->assertSame(200, $combinedResponse->getStatusCode());
+        $this->assertCount(1, $combinedBody['completedTasks']);
+        $this->assertSame($waitingTaskId, $combinedBody['completedTasks'][0]['taskId']);
+        $this->assertCount(1, $combinedBody['cancelledTasks']);
+        $this->assertSame($cancelTaskId, $combinedBody['cancelledTasks'][0]['taskId']);
+        $this->assertCount(1, $combinedBody['acceptedTasks']);
+        $this->assertSame('task-000003', $combinedBody['acceptedTasks'][0]['taskId']);
+    }
+
+    /**
+     * Проверяет приоритет cancelledTaskIds над waitingTaskIds в одном batch.
+     */
+    public function testCancelOverridesWaitingInSameBatch(): void
+    {
+        // Новая задача ставится и отменяется в одном запросе: completed пуст, cancelled заполнен.
+        $handler = $this->createEndpointHandler(false, false, 60, '/task/batch');
+        $overridePayload = [
+            'submittedAt' => '2026-06-05T08:10:30+00:00',
+            'tasks' => [
+                ['method' => 'echo', 'payload' => ['value' => 10]],
+            ],
+            'waitingTaskIds' => ['task-000001'],
+            'cancelledTaskIds' => ['task-000001'],
+        ];
+        $overrideResponse = $handler->handle(
+            $this->createRequestDto('/task/batch', 'POST', (string) json_encode($overridePayload), null)
+        );
+        $overrideBody = $this->decodeResponseBody($overrideResponse->getBody());
+
+        $this->assertCount(0, $overrideBody['completedTasks']);
+        $this->assertCount(1, $overrideBody['cancelledTasks']);
+        $this->assertSame('task-000001', $overrideBody['cancelledTasks'][0]['taskId']);
+        $this->assertCount(1, $overrideBody['acceptedTasks']);
+        $this->assertCount(0, $overrideBody['unknownTasks']);
+    }
+
+    /**
      * Проверяет получение результата команды sum после двухшагового опроса.
      */
     public function testSumTaskResultRetrievalOnSecondRequest(): void
@@ -337,7 +487,7 @@ final class TaskEndpointHandlerTest extends TestCase
 
         $this->assertSame(422, $response->getStatusCode());
         $this->assertStringContainsString(
-            'At least one task or waitingTaskId must be provided.',
+            'At least one task, waitingTaskId or cancelledTaskId must be provided.',
             $response->getBody()
         );
     }
@@ -573,6 +723,7 @@ final class TaskEndpointHandlerTest extends TestCase
                 ['method' => 'echo', 'payload' => ['value' => 10]],
             ],
             'waitingTaskIds' => [],
+            'cancelledTaskIds' => [],
         ];
     }
 

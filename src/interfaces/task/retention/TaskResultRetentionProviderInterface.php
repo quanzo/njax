@@ -70,4 +70,15 @@ interface TaskResultRetentionProviderInterface
      * @return void
      */
     public function cleanupExpired(\DateTimeImmutable $checkedAt): void;
+
+    /**
+     * Удалить сохранённый результат.
+     * Удаляет неистёкший результат задачи из хранилища.
+     *
+     * @param TaskId $taskId Идентификатор задачи.
+     * @param \DateTimeImmutable $checkedAt Метка времени для проверки TTL.
+     *
+     * @return bool true, если результат существовал и был удалён.
+     */
+    public function discardResult(TaskId $taskId, \DateTimeImmutable $checkedAt): bool;
 }

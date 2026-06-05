@@ -7,7 +7,7 @@
 ## Запуск
 
 ```bash
-# Все тесты (73)
+# Все тесты (81)
 ./vendor/bin/phpunit
 
 # Один класс
@@ -23,14 +23,14 @@
 
 | Класс | Файл | Уровень | Тестов | Связанный код |
 |-------|------|---------|--------|---------------|
-| `TaskEndpointHandlerTest` | [`tests/Task/TaskEndpointHandlerTest.php`](../tests/Task/TaskEndpointHandlerTest.php) | интеграционный | 19 | `TaskEndpointHandler`, `TaskBatchHandler` |
-| `TaskBatchRequestMapperTest` | [`tests/Task/TaskBatchRequestMapperTest.php`](../tests/Task/TaskBatchRequestMapperTest.php) | unit (маппер) | 13 | `TaskBatchRequestMapper` |
+| `TaskEndpointHandlerTest` | [`tests/Task/TaskEndpointHandlerTest.php`](../tests/Task/TaskEndpointHandlerTest.php) | интеграционный | 23 | `TaskEndpointHandler`, `TaskBatchHandler` |
+| `TaskBatchRequestMapperTest` | [`tests/Task/TaskBatchRequestMapperTest.php`](../tests/Task/TaskBatchRequestMapperTest.php) | unit (маппер) | 21 | `TaskBatchRequestMapper` |
 | `TaskCommandRegistryTest` | [`tests/Task/TaskCommandRegistryTest.php`](../tests/Task/TaskCommandRegistryTest.php) | unit (команды) | 14 | `TaskCommandRegistry`, `EchoTaskCommand`, `SumTaskCommand` |
 | `ArrayableDtoTest` | [`tests/Dto/ArrayableDtoTest.php`](../tests/Dto/ArrayableDtoTest.php) | unit (DTO) | 3 | `IArrayable`, `IJsonArrayable` |
 | `JsonArrayableHelperTest` | [`tests/Dto/JsonArrayableHelperTest.php`](../tests/Dto/JsonArrayableHelperTest.php) | unit (хелпер) | 13 | `JsonArrayableHelper` |
 | `DtoCollectionTraitTest` | [`tests/Dto/DtoCollectionTraitTest.php`](../tests/Dto/DtoCollectionTraitTest.php) | unit (traits) | 11 | traits коллекций DTO |
 
-**Итого: 6 классов, 73 теста.**
+**Итого: 6 классов, 81 тест.**
 
 ## Быстрый поиск по сценарию
 
@@ -40,6 +40,10 @@
 | Результат команды `sum` в `completedTasks[].result` | `TaskEndpointHandlerTest::testSumTaskResultRetrievalOnSecondRequest` |
 | Опрос задачи в состоянии pending (ещё в очереди) | `TaskEndpointHandlerTest::testPendingTaskPollInSameBatchRequest` |
 | Комбинированный batch (`tasks` + `waitingTaskIds` в одном запросе) | `TaskEndpointHandlerTest::testCombinedTasksAndWaitingTaskIdsInOneBatch` |
+| Отмена pending-задачи до исполнения | `TaskEndpointHandlerTest::testCancelPendingBeforeExecution` |
+| Отмена удаляет сохранённый результат | `TaskEndpointHandlerTest::testCancelDiscardsStoredResult` |
+| Batch с `tasks` + `waitingTaskIds` + `cancelledTaskIds` | `TaskEndpointHandlerTest::testCancelledCombinedBatch` |
+| Приоритет `cancelledTaskIds` над `waitingTaskIds` | `TaskEndpointHandlerTest::testCancelOverridesWaitingInSameBatch` |
 | HTTP 400/422 для невалидного транспортного запроса | `testNonPostMethodReturnsBadRequest`, `testInvalidJsonPayloadReturnsBadRequest`, `testNonObjectJsonBodyReturnsBadRequest`, `testMalformedBatchPayloadReturnsUnprocessableEntity` |
 | Сбой исполнения команды (error-результат) | `TaskEndpointHandlerTest::testExecutionFailureReturnsErrorResultInCompletedTask` |
 | Успешный приём batch-запроса | `TaskEndpointHandlerTest::testSuccessfulBatchAcceptance` |
@@ -51,7 +55,7 @@
 | Несуществующий task id (`unknownTasks`, `task_not_found`) | `TaskEndpointHandlerTest::testUnknownTaskResponse` |
 | Истёкший результат (`task_result_expired`) | `TaskEndpointHandlerTest::testExpiredResultResponse` |
 | Нормализация HTTP-запроса в `RequestDto` | `TaskEndpointHandlerTest::testRequestDtoFromHttpRequestNormalization` |
-| Валидация структуры JSON batch-запроса | `TaskBatchRequestMapperTest` (13 кейсов data provider) |
+| Валидация структуры JSON batch-запроса | `TaskBatchRequestMapperTest` (21 кейс data provider) |
 | Валидация payload команды `sum` | `TaskCommandRegistryTest::testSumCommandValidationDatasets` (12 кейсов) |
 | Исполнение команды `echo` через реестр | `TaskCommandRegistryTest::testExecuteEchoCommandThroughRegistry` |
 | Неизвестная команда в реестре | `TaskCommandRegistryTest::testUnknownCommandProducesValidationException` |
@@ -75,6 +79,10 @@
 - **testPartialAcceptWithValidationErrors** — валидная задача в `acceptedTasks`, невалидные — в `validationErrors`.
 - **testCompletedTaskRetrievalOnSecondRequest** — двухшаговый цикл: постановка задачи, затем опрос по `waitingTaskIds` → `completedTasks` (без проверки `result`).
 - **testCombinedTasksAndWaitingTaskIdsInOneBatch** — комбинированный batch: `completedTasks` для предыдущей задачи и `acceptedTasks` для новой в одном запросе.
+- **testCancelPendingBeforeExecution** — `cancelledTaskIds` снимает pending-задачу до исполнения.
+- **testCancelDiscardsStoredResult** — отмена удаляет результат из retention; повторный опрос → `task_not_found`.
+- **testCancelledCombinedBatch** — один запрос: завершение, отмена и постановка новой задачи.
+- **testCancelOverridesWaitingInSameBatch** — id в `waitingTaskIds` и `cancelledTaskIds` → `cancelledTasks`, не `completedTasks`.
 - **testSumTaskResultRetrievalOnSecondRequest** — двухшаговый цикл для `sum` с проверкой `result` (`sum`, `count`) и `status: completed`.
 - **testPendingTaskPollInSameBatchRequest** — `waitingTaskIds` для только что поставленной задачи: пустые `completedTasks` и `unknownTasks`.
 - **testNonPostMethodReturnsBadRequest** — не-POST запрос возвращает 400.
@@ -89,12 +97,16 @@
 
 ### TaskBatchRequestMapperTest
 
-Unit-тесты маппера `TaskBatchRequestMapper::fromDecodedPayload()`. Один параметризованный метод с 13 наборами данных (валидные, невалидные, граничные).
+Unit-тесты маппера `TaskBatchRequestMapper::fromDecodedPayload()`. Один параметризованный метод с 21 набором данных (валидные, невалидные, граничные).
 
 - **testMapperPayloadDatasets** — data provider `payloadDataProvider`:
   - `valid_tasks_only` — валидный запрос только с `tasks`.
   - `valid_waiting_only` — валидный запрос только с `waitingTaskIds`.
   - `valid_tasks_and_waiting` — валидный запрос с `tasks` и `waitingTaskIds` одновременно.
+  - `valid_cancelled_only` — валидный запрос только с `cancelledTaskIds`.
+  - `valid_combined_all_three` — валидный запрос с `tasks`, `waitingTaskIds` и `cancelledTaskIds`.
+  - `cancelled_ids_not_array`, `cancelled_id_not_string` — ошибки структуры `cancelledTaskIds`.
+  - `empty_all_arrays` — пустые `tasks`, `waitingTaskIds` и `cancelledTaskIds`.
   - `missing_submitted_at` — отсутствует `submittedAt`.
   - `invalid_submitted_at` — невалидная дата в `submittedAt`.
   - `tasks_not_array` — `tasks` не массив.

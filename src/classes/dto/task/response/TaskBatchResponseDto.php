@@ -1,0 +1,124 @@
+<?php
+
+declare(strict_types=1);
+
+namespace app\njax\classes\dto\task\response;
+
+use app\njax\helpers\JsonArrayableHelper;
+use app\njax\interfaces\serialization\IJsonArrayable;
+use app\njax\traits\serialization\ArrayableFromJsonTrait;
+
+/**
+ * DTO ответа endpoint пакетной обработки задач.
+ *
+ * В ответе одновременно возвращаются:
+ * - список принятых задач;
+ * - список готовых результатов;
+ * - список неизвестных идентификаторов;
+ * - список ошибок валидации задач (режим partial accept);
+ * - серверная метка времени проверки.
+ */
+final class TaskBatchResponseDto implements IJsonArrayable
+{
+    use ArrayableFromJsonTrait;
+
+    /**
+     * @var AcceptedTaskCollectionDto
+     */
+    private AcceptedTaskCollectionDto $acceptedTasks;
+
+    /**
+     * @var CompletedTaskCollectionDto
+     */
+    private CompletedTaskCollectionDto $completedTasks;
+
+    /**
+     * @var UnknownTaskCollectionDto
+     */
+    private UnknownTaskCollectionDto $unknownTasks;
+
+    /**
+     * @var ValidationErrorCollectionDto
+     */
+    private ValidationErrorCollectionDto $validationErrors;
+
+    /**
+     * @var \DateTimeImmutable
+     */
+    private \DateTimeImmutable $checkedAt;
+
+    /**
+     * @param AcceptedTaskCollectionDto $acceptedTasks Новые принятые задачи.
+     * @param CompletedTaskCollectionDto $completedTasks Задачи с готовым результатом.
+     * @param UnknownTaskCollectionDto $unknownTasks Неизвестные id задач.
+     * @param ValidationErrorCollectionDto $validationErrors Ошибки валидации задач в режиме partial accept.
+     * @param \DateTimeImmutable $checkedAt Метка времени проверки на сервере.
+     */
+    public function __construct(
+        AcceptedTaskCollectionDto $acceptedTasks,
+        CompletedTaskCollectionDto $completedTasks,
+        UnknownTaskCollectionDto $unknownTasks,
+        ValidationErrorCollectionDto $validationErrors,
+        \DateTimeImmutable $checkedAt
+    ) {
+        $this->acceptedTasks = $acceptedTasks;
+        $this->completedTasks = $completedTasks;
+        $this->unknownTasks = $unknownTasks;
+        $this->validationErrors = $validationErrors;
+        $this->checkedAt = $checkedAt;
+    }
+
+    /**
+     * @return AcceptedTaskCollectionDto
+     */
+    public function getAcceptedTasks(): AcceptedTaskCollectionDto
+    {
+        return $this->acceptedTasks;
+    }
+
+    /**
+     * @return CompletedTaskCollectionDto
+     */
+    public function getCompletedTasks(): CompletedTaskCollectionDto
+    {
+        return $this->completedTasks;
+    }
+
+    /**
+     * @return UnknownTaskCollectionDto
+     */
+    public function getUnknownTasks(): UnknownTaskCollectionDto
+    {
+        return $this->unknownTasks;
+    }
+
+    /**
+     * @return ValidationErrorCollectionDto
+     */
+    public function getValidationErrors(): ValidationErrorCollectionDto
+    {
+        return $this->validationErrors;
+    }
+
+    /**
+     * @return \DateTimeImmutable
+     */
+    public function getCheckedAt(): \DateTimeImmutable
+    {
+        return $this->checkedAt;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toJsonArray(): array
+    {
+        return [
+            'checkedAt' => $this->checkedAt->format(\DateTimeInterface::ATOM),
+            'acceptedTasks' => JsonArrayableHelper::toJsonArray($this->acceptedTasks),
+            'completedTasks' => JsonArrayableHelper::toJsonArray($this->completedTasks),
+            'unknownTasks' => JsonArrayableHelper::toJsonArray($this->unknownTasks),
+            'validationErrors' => JsonArrayableHelper::toJsonArray($this->validationErrors),
+        ];
+    }
+}

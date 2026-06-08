@@ -32,58 +32,116 @@ use app\njax\interfaces\task\retention\TaskResultRetentionProviderInterface;
 /**
  * Оркестратор серверной обработки пакетного запроса задач.
  *
- * Класс координирует:
- * - проверки безопасности (auth + signature);
- * - отмену задач, которые клиент больше не ждёт;
- * - исполнение уже поставленных в очередь задач;
- * - частичное принятие новых задач с командной валидацией;
- * - сбор готовых/отменённых/неизвестных результатов для клиента.
+ * Класс координирует полный цикл одного batch-запроса от клиента:
+ * - проверки безопасности (авторизация и подпись);
+ * - очистку просроченных результатов;
+ * - отмену задач по `cancelledTaskIds` (до и после постановки новых);
+ * - исполнение задач, ожидающих в очереди;
+ * - частичное принятие новых задач с pre-enqueue валидацией команд;
+ * - выдачу готовых, отменённых и неизвестных результатов по `waitingTaskIds`.
+ *
+ * Порядок обработки в `handle()` намеренно фиксирован: сначала отмена и drain очереди,
+ * затем постановка новых задач, повторная отмена (для id, принятых в этом же batch),
+ * опрос `waitingTaskIds` и формирование `unknownTasks`.
+ *
+ * Пример:
+ * $handler = new TaskBatchHandler(
+ *     $queueProvider,
+ *     $retentionProvider,
+ *     $executorProvider,
+ *     $commandRegistry,
+ *     $authorizationProvider,
+ *     $signatureProvider,
+ *     new TaskBatchHandlerConfigDto(true, false, 120)
+ * );
+ * $response = $handler->handle($batchRequest, $requestContext);
  */
 final class TaskBatchHandler
 {
     /**
+     * Провайдер очереди задач.
+     *
+     * Отвечает за постановку (`enqueue`), извлечение pending-задач (`drainPendingTasks`),
+     * проверку статуса (`isPending`) и отмену до исполнения (`cancelPending`).
+     *
      * @var TaskQueueProviderInterface
      */
     private TaskQueueProviderInterface $taskQueueProvider;
 
     /**
+     * Провайдер хранения результатов исполненных задач.
+     *
+     * Сохраняет результаты после drain, отдаёт готовые по id (`getCompletedByIds`),
+     * удаляет по отмене (`discardResult`), определяет причину неизвестного id
+     * (`resolveUnknownReason`) и очищает просроченные записи (`cleanupExpired`).
+     *
      * @var TaskResultRetentionProviderInterface
      */
     private TaskResultRetentionProviderInterface $taskResultRetentionProvider;
 
     /**
+     * Провайдер исполнения прикладных методов задач.
+     *
+     * Вызывается для каждой задачи, извлечённой из очереди; конкретная реализация
+     * маршрутизирует `methodName` к зарегистрированной команде.
+     *
      * @var TaskMethodExecutorProviderInterface
      */
     private TaskMethodExecutorProviderInterface $taskMethodExecutorProvider;
 
     /**
+     * Реестр команд для pre-enqueue валидации.
+     *
+     * Проверяет входные данные новых задач до постановки в очередь; при ошибке
+     * задача попадает в `validationErrors`, а не прерывает обработку всего batch.
+     *
      * @var TaskCommandRegistryInterface
      */
     private TaskCommandRegistryInterface $taskCommandRegistry;
 
     /**
+     * Провайдер авторизации входящего запроса.
+     *
+     * Используется в `assertAuthorized()`; при отказе бросает `AuthorizationException`.
+     *
      * @var AuthorizationProviderInterface
      */
     private AuthorizationProviderInterface $authorizationProvider;
 
     /**
+     * Провайдер проверки криптографической подписи batch-запроса.
+     *
+     * Используется в `assertSignatureValid()`; при невалидной или отсутствующей
+     * (когда требуется) подписи бросает `SignatureException`.
+     *
      * @var RequestSignatureProviderInterface
      */
     private RequestSignatureProviderInterface $requestSignatureProvider;
 
     /**
+     * Конфигурация обработчика.
+     *
+     * Содержит флаги `requiresAuthorization`, `requiresSignature` и TTL результатов
+     * в секундах для расчёта `expiresAt` при сохранении.
+     *
      * @var TaskBatchHandlerConfigDto
      */
     private TaskBatchHandlerConfigDto $config;
 
     /**
-     * @param TaskQueueProviderInterface $taskQueueProvider Адаптер провайдера очереди.
+     * Конструктор.
+     *
+     * Собирает обработчик из внедрённых провайдеров и неизменяемой конфигурации.
+     * Все зависимости передаются извне (composition root / фабрика endpoint),
+     * что упрощает подмену адаптеров в тестах.
+     *
+     * @param TaskQueueProviderInterface $taskQueueProvider Адаптер очереди задач.
      * @param TaskResultRetentionProviderInterface $taskResultRetentionProvider Адаптер хранения результатов.
-     * @param TaskMethodExecutorProviderInterface $taskMethodExecutorProvider Адаптер выполнения методов.
-     * @param TaskCommandRegistryInterface $taskCommandRegistry Реестр доступных команд для pre-enqueue валидации.
-     * @param AuthorizationProviderInterface $authorizationProvider Адаптер авторизации.
+     * @param TaskMethodExecutorProviderInterface $taskMethodExecutorProvider Адаптер исполнения методов задач.
+     * @param TaskCommandRegistryInterface $taskCommandRegistry Реестр команд для pre-enqueue валидации.
+     * @param AuthorizationProviderInterface $authorizationProvider Адаптер авторизации запроса.
      * @param RequestSignatureProviderInterface $requestSignatureProvider Адаптер проверки подписи.
-     * @param TaskBatchHandlerConfigDto $config Параметры обработчика.
+     * @param TaskBatchHandlerConfigDto $config Параметры безопасности и TTL результатов.
      */
     public function __construct(
         TaskQueueProviderInterface $taskQueueProvider,
@@ -104,10 +162,33 @@ final class TaskBatchHandler
     }
 
     /**
-     * @param ClientTaskBatchRequestDto $request Клиентский пакетный запрос.
-     * @param RequestContextDto $context Транспортно-нейтральный контекст запроса.
+     * Обработать пакетный запрос задач.
      *
-     * @return TaskBatchResponseDto
+     * Главная точка входа доменной логики. Выполняет проверки безопасности,
+     * синхронно обрабатывает очередь и формирует агрегированный ответ для клиента.
+     * HTTP-обёртка (`TaskEndpointHandler`) маппит исключения в статусы ответа.
+     *
+     * Этапы:
+     * 1. `assertAuthorized` / `assertSignatureValid`;
+     * 2. `cleanupExpired` просроченных результатов;
+     * 3. первая волна `processCancelledTasks` (до drain);
+     * 4. `executePendingTasks` — drain очереди и сохранение результатов;
+     * 5. `enqueueNewTasks` — partial accept новых `tasks`;
+     * 6. вторая волна отмены (id могли появиться после enqueue);
+     * 7. `getCompletedByIds` по отфильтрованным `waitingTaskIds`;
+     * 8. `resolveUnknownTasks` для id без результата, не в очереди и не отменённых.
+     *
+     * @param ClientTaskBatchRequestDto $request Распарсенный клиентский batch
+     *     (`tasks`, `waitingTaskIds`, `cancelledTaskIds`, `submittedAt`, опционально `signature`).
+     * @param RequestContextDto $context Транспортно-нейтральный контекст
+     *     (HTTP-метод, путь, user id и прочие метаданные для auth/signature).
+     *
+     * @return TaskBatchResponseDto Агрегированный ответ с коллекциями
+     *     `acceptedTasks`, `completedTasks`, `cancelledTasks`, `unknownTasks`, `validationErrors`
+     *     и меткой `checkedAt`.
+     *
+     * @throws AuthorizationException Если провайдер авторизации отклонил запрос.
+     * @throws SignatureException Если подпись обязательна, но отсутствует или невалидна.
      */
     public function handle(ClientTaskBatchRequestDto $request, RequestContextDto $context): TaskBatchResponseDto
     {
@@ -139,9 +220,18 @@ final class TaskBatchHandler
     }
 
     /**
-     * @param RequestContextDto $context Метаданные контекста запроса.
+     * Проверить авторизацию запроса.
+     *
+     * Делегирует решение `AuthorizationProviderInterface`. Учитывает флаг
+     * `requiresAuthorization` из конфигурации через `AuthorizationRequestDto`.
+     * При отказе формирует `AuthorizationException` с HTTP-кодом из результата
+     * провайдера или 403 по умолчанию.
+     *
+     * @param RequestContextDto $context Контекст запроса для передачи провайдеру авторизации.
      *
      * @return void
+     *
+     * @throws AuthorizationException Если доступ не разрешён.
      */
     private function assertAuthorized(RequestContextDto $context): void
     {
@@ -161,10 +251,19 @@ final class TaskBatchHandler
     }
 
     /**
-     * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
-     * @param RequestContextDto $context Метаданные контекста запроса.
+     * Проверить подпись batch-запроса.
+     *
+     * Если в конфигурации `requiresSignature === true` и в DTO нет объекта подписи,
+     * сразу бросает `SignatureException`. Иначе делегирует верификацию
+     * `RequestSignatureProviderInterface` и при неуспехе бросает исключение
+     * с сообщением провайдера.
+     *
+     * @param ClientTaskBatchRequestDto $request DTO запроса, включая опциональное поле `signature`.
+     * @param RequestContextDto $context Контекст запроса для провайдера подписи.
      *
      * @return void
+     *
+     * @throws SignatureException Если подпись обязательна, но отсутствует, или проверка не пройдена.
      */
     private function assertSignatureValid(ClientTaskBatchRequestDto $request, RequestContextDto $context): void
     {
@@ -181,7 +280,15 @@ final class TaskBatchHandler
     }
 
     /**
-     * @param \DateTimeImmutable $checkedAt Текущее время проверки.
+     * Извлечь и исполнить все pending-задачи из очереди.
+     *
+     * Вызывает `drainPendingTasks()` — после этого новые задачи из текущего batch
+     * ещё не поставлены. Для каждой извлечённой задачи:
+     * - выполняет метод через `executeMethodSafely` (ошибки → структура `error` в result);
+     * - сохраняет `StoredTaskResultDto` с TTL из конфигурации.
+     *
+     * @param \DateTimeImmutable $checkedAt Момент обработки; используется как `completedAt`
+     *     и база для расчёта `expiresAt` (`checkedAt + resultTtlSeconds`).
      *
      * @return void
      */
@@ -209,10 +316,16 @@ final class TaskBatchHandler
     }
 
     /**
-     * @param string $methodName Имя метода задачи.
-     * @param mixed $payload Пейлоад задачи.
+     * Безопасно выполнить прикладной метод задачи.
      *
-     * @return mixed
+     * Оборачивает вызов `TaskMethodExecutorProviderInterface::execute` в try/catch:
+     * любое `\Throwable` не прерывает batch, а возвращается как сериализуемый массив
+     * с полями `error`, `message`, `method`. Успешный результат передаётся клиенту как есть.
+     *
+     * @param string $methodName Имя команды (например, `echo`, `sum`).
+     * @param mixed $payload Декодированный JSON-пейлоад задачи.
+     *
+     * @return mixed Результат исполнения команды или массив-описание ошибки.
      */
     private function executeMethodSafely(string $methodName, mixed $payload): mixed
     {
@@ -228,11 +341,19 @@ final class TaskBatchHandler
     }
 
     /**
-     * Проводит pre-enqueue валидацию и частично принимает задачи в очередь.
+     * Провести pre-enqueue валидацию и частично принять новые задачи.
      *
-     * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
+     * Обходит `tasks` из запроса в порядке индексов. Для каждой задачи:
+     * - при успешной `validateCommandInput` — `enqueue` и запись в `acceptedTasks`
+     *   с `requestTaskIndex` и выданным `taskId`;
+     * - при `ValidationException` — запись в `validationErrors` без постановки в очередь.
      *
-     * @return array{0: AcceptedTaskCollectionDto, 1: ValidationErrorCollectionDto}
+     * Ошибка одной задачи не отменяет приём остальных (partial accept).
+     *
+     * @param ClientTaskBatchRequestDto $request Batch-запрос с коллекцией новых `tasks`.
+     *
+     * @return array{0: AcceptedTaskCollectionDto, 1: ValidationErrorCollectionDto} Пара коллекций:
+     *     принятые задачи и ошибки валидации по индексам запроса.
      */
     private function enqueueNewTasks(ClientTaskBatchRequestDto $request): array
     {
@@ -261,12 +382,19 @@ final class TaskBatchHandler
     }
 
     /**
-     * Отменяет задачи из запроса до извлечения очереди на исполнение.
+     * Обработать отмену задач по списку идентификаторов.
      *
-     * @param TaskIdCollectionDto $cancelledTaskIds Идентификаторы задач для отмены.
-     * @param \DateTimeImmutable $checkedAt Текущее время проверки.
+     * Для каждого `taskId` пытается:
+     * - снять задачу из очереди до исполнения (`cancelPending`);
+     * - либо удалить сохранённый результат (`discardResult`).
      *
-     * @return CancelledTaskCollectionDto
+     * Если хотя бы одна операция успешна, id попадает в `cancelledTasks` ответа.
+     * Несуществующие id тихо пропускаются (не unknown на этом этапе).
+     *
+     * @param TaskIdCollectionDto $cancelledTaskIds Идентификаторы задач для отмены из запроса.
+     * @param \DateTimeImmutable $checkedAt Момент проверки для retention-провайдера.
+     *
+     * @return CancelledTaskCollectionDto Коллекция фактически отменённых задач.
      */
     private function processCancelledTasks(
         TaskIdCollectionDto $cancelledTaskIds,
@@ -289,12 +417,16 @@ final class TaskBatchHandler
     }
 
     /**
-     * Объединяет две коллекции отменённых задач без дублирования taskId.
+     * Объединить две коллекции отменённых задач без дублирования taskId.
      *
-     * @param CancelledTaskCollectionDto $primary Основная коллекция отменённых задач.
-     * @param CancelledTaskCollectionDto $additional Дополнительная коллекция отменённых задач.
+     * Используется после двух вызовов `processCancelledTasks` в одном `handle()`:
+     * первая волна — до enqueue, вторая — после (когда отмена могла затронуть
+     * только что принятые id). Порядок элементов: сначала `$primary`, затем уникальные из `$additional`.
      *
-     * @return CancelledTaskCollectionDto
+     * @param CancelledTaskCollectionDto $primary Результат первой волны отмены.
+     * @param CancelledTaskCollectionDto $additional Результат второй волны отмены.
+     *
+     * @return CancelledTaskCollectionDto Объединённая коллекция без повторяющихся id.
      */
     private function mergeCancelledTaskCollections(
         CancelledTaskCollectionDto $primary,
@@ -321,11 +453,15 @@ final class TaskBatchHandler
     }
 
     /**
-     * Исключает id из waitingTaskIds, которые отменены в текущем batch-запросе.
+     * Отфильтровать waitingTaskIds, исключив отменённые в текущем batch.
      *
-     * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
+     * Id, присутствующие одновременно в `waitingTaskIds` и `cancelledTaskIds`,
+     * не опрашиваются на готовность: приоритет отмены выше ожидания результата
+     * (см. тест `testCancelOverridesWaitingInSameBatch`).
      *
-     * @return TaskIdCollectionDto
+     * @param ClientTaskBatchRequestDto $request Batch-запрос с `waitingTaskIds` и `cancelledTaskIds`.
+     *
+     * @return TaskIdCollectionDto Подмножество id для `getCompletedByIds`.
      */
     private function filterWaitingTaskIdsExcludingCancelled(ClientTaskBatchRequestDto $request): TaskIdCollectionDto
     {
@@ -344,9 +480,14 @@ final class TaskBatchHandler
     }
 
     /**
-     * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
+     * Построить хеш-таблицу отменённых taskId для быстрой проверки принадлежности.
      *
-     * @return array<string, bool>
+     * Ключ — строковое представление `TaskId`, значение — `true`.
+     * Переиспользуется в фильтрации waiting и разрешении unknown.
+     *
+     * @param ClientTaskBatchRequestDto $request Batch-запрос с коллекцией `cancelledTaskIds`.
+     *
+     * @return array<string, bool> Ассоциативный массив «taskId → true».
      */
     private function buildCancelledTaskIdLookup(ClientTaskBatchRequestDto $request): array
     {
@@ -359,11 +500,22 @@ final class TaskBatchHandler
     }
 
     /**
-     * @param ClientTaskBatchRequestDto $request Распарсенный DTO запроса.
-     * @param \DateTimeImmutable $checkedAt Текущее время проверки.
-     * @param CompletedTaskCollectionDto $completedTasks Коллекция завершенных задач.
+     * Определить неизвестные задачи среди waitingTaskIds.
      *
-     * @return UnknownTaskCollectionDto
+     * Для каждого id из `waitingTaskIds` (кроме отменённых в этом batch и уже
+     * попавших в `completedTasks`) проверяет:
+     * - не в pending-очереди (`isPending`);
+     * - нет сохранённого результата (`hasResult`).
+     *
+     * Если обе проверки ложны — id считается неизвестным; причина берётся из
+     * `resolveUnknownReason` (например, `task_not_found`, `task_result_expired`).
+     *
+     * @param ClientTaskBatchRequestDto $request Исходный batch-запрос.
+     * @param \DateTimeImmutable $checkedAt Момент проверки для retention.
+     * @param CompletedTaskCollectionDto $completedTasks Уже найденные завершённые задачи
+     *     (исключаются из unknown, даже если retention ещё не отдал result повторно).
+     *
+     * @return UnknownTaskCollectionDto Коллекция неизвестных id с кодами причин.
      */
     private function resolveUnknownTasks(
         ClientTaskBatchRequestDto $request,

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\traits\serialization;
+namespace app\modules\njax\traits\serialization;
 
-use app\njax\helpers\JsonArrayableHelper;
+use app\modules\njax\helpers\JsonArrayableHelper;
 
 /**
  * JSON-сериализация коллекции DTO с рекурсивной обработкой IJsonArrayable.

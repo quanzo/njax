@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Task;
 
-use app\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
+use app\modules\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
 
 /**
  * Test-double провайдера исполнения, всегда выбрасывающий исключение.

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\task;
+namespace app\modules\njax\classes\task;
 
-use app\njax\classes\adapters\http\TaskBatchRequestMapper;
-use app\njax\classes\dto\http\HttpResponseDto;
-use app\njax\classes\dto\http\RequestDto;
-use app\njax\exceptions\security\AuthorizationException;
-use app\njax\exceptions\security\SignatureException;
-use app\njax\exceptions\task\ValidationException;
-use app\njax\interfaces\task\command\TaskCommandRegistryInterface;
+use app\modules\njax\classes\adapters\http\TaskBatchRequestMapper;
+use app\modules\njax\classes\dto\http\HttpResponseDto;
+use app\modules\njax\classes\dto\http\RequestDto;
+use app\modules\njax\exceptions\security\AuthorizationException;
+use app\modules\njax\exceptions\security\SignatureException;
+use app\modules\njax\exceptions\task\ValidationException;
+use app\modules\njax\interfaces\task\command\TaskCommandRegistryInterface;
 
 /**
  * HTTP-обработчик endpoint пакетной постановки и опроса задач.

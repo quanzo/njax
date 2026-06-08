@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\exceptions\task;
+namespace app\modules\njax\exceptions\task;
 
 /**
  * Исключение валидации.

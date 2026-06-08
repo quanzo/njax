@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\providers\authorization;
+namespace app\modules\njax\classes\providers\authorization;
 
-use app\njax\classes\dto\security\AuthorizationRequestDto;
-use app\njax\classes\dto\security\AuthorizationResultDto;
-use app\njax\interfaces\security\AuthorizationProviderInterface;
+use app\modules\njax\classes\dto\security\AuthorizationRequestDto;
+use app\modules\njax\classes\dto\security\AuthorizationResultDto;
+use app\modules\njax\interfaces\security\AuthorizationProviderInterface;
 
 /**
  * Stub провайдера авторизации с разрешением для всех.

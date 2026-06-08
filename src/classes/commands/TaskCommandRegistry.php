@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\commands;
+namespace app\modules\njax\classes\commands;
 
-use app\njax\exceptions\task\ValidationException;
-use app\njax\interfaces\task\command\TaskCommandInterface;
-use app\njax\interfaces\task\command\TaskCommandRegistryInterface;
+use app\modules\njax\exceptions\task\ValidationException;
+use app\modules\njax\interfaces\task\command\TaskCommandInterface;
+use app\modules\njax\interfaces\task\command\TaskCommandRegistryInterface;
 
 /**
  * Реестр доступных команд task-endpoint.

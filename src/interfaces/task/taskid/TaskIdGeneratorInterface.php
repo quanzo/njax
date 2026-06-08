@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\interfaces\task\taskid;
+namespace app\modules\njax\interfaces\task\taskid;
 
-use app\njax\classes\task\TaskId;
+use app\modules\njax\classes\task\TaskId;
 
 /**
  * Интерфейс генератора id задач.

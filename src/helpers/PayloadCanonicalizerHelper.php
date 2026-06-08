@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\helpers;
+namespace app\modules\njax\helpers;
 
 /**
  * Хелпер каноникализации пейлоада.

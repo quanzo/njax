@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\task\queue;
+namespace app\modules\njax\classes\dto\task\queue;
 
-use app\njax\classes\task\TaskId;
+use app\modules\njax\classes\task\TaskId;
 
 /**
  * DTO сохраненного результата задачи.

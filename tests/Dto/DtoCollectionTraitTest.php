@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Dto;
 
-use app\njax\classes\dto\task\response\AcceptedTaskCollectionDto;
-use app\njax\classes\dto\task\response\AcceptedTaskDto;
-use app\njax\classes\task\TaskId;
+use app\modules\njax\classes\dto\task\response\AcceptedTaskCollectionDto;
+use app\modules\njax\classes\dto\task\response\AcceptedTaskDto;
+use app\modules\njax\classes\task\TaskId;
 use PHPUnit\Framework\TestCase;
 
 /**

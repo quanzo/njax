@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\traits\serialization;
+namespace app\modules\njax\traits\serialization;
 
 /**
  * Делегирует доменный toArray() в JSON-представление toJsonArray().

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace app\njax\interfaces\security;
+namespace app\modules\njax\interfaces\security;
 
-use app\njax\classes\dto\security\AuthorizationRequestDto;
-use app\njax\classes\dto\security\AuthorizationResultDto;
+use app\modules\njax\classes\dto\security\AuthorizationRequestDto;
+use app\modules\njax\classes\dto\security\AuthorizationResultDto;
 
 /**
  * Интерфейс провайдера авторизации.

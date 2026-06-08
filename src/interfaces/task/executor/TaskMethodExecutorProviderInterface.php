@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\interfaces\task\executor;
+namespace app\modules\njax\interfaces\task\executor;
 
 /**
  * Интерфейс провайдера выполнения методов задач.

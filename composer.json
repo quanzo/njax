@@ -15,7 +15,7 @@
     },
     "autoload": {
         "psr-4": {
-            "app\\njax\\": "src/"
+            "app\\modules\\njax\\": "src/"
         }
     },
     "autoload-dev": {

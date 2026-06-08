@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Task;
 
-use app\njax\commands\EchoTaskCommand;
-use app\njax\commands\SumTaskCommand;
-use app\njax\classes\commands\TaskCommandRegistry;
-use app\njax\exceptions\task\ValidationException;
+use app\modules\njax\commands\EchoTaskCommand;
+use app\modules\njax\commands\SumTaskCommand;
+use app\modules\njax\classes\commands\TaskCommandRegistry;
+use app\modules\njax\exceptions\task\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

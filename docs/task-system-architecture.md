@@ -244,8 +244,8 @@ Namespace: `app\njax\classes\dto\<group>\[<subgroup>\]\<ClassName>`.
 Пример:
 
 ```php
-use app\njax\helpers\JsonArrayableHelper;
-use app\njax\classes\dto\task\response\TaskBatchResponseDto;
+use app\modules\njax\helpers\JsonArrayableHelper;
+use app\modules\njax\classes\dto\task\response\TaskBatchResponseDto;
 
 $json = json_encode(JsonArrayableHelper::toJsonArray($responseDto), JSON_THROW_ON_ERROR);
 ```

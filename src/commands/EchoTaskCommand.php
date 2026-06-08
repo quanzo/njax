@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\commands;
+namespace app\modules\njax\commands;
 
-use app\njax\classes\commands\AbstractTaskCommand;
+use app\modules\njax\classes\commands\AbstractTaskCommand;
 
 /**
  * Команда, возвращающая входные параметры без модификаций.

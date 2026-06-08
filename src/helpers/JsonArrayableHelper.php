@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\helpers;
+namespace app\modules\njax\helpers;
 
-use app\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
 
 /**
  * Хелпер рекурсивной сериализации значений в JSON-совместимую структуру.

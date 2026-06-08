@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\adapters\http;
+namespace app\modules\njax\classes\adapters\http;
 
-use app\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
-use app\njax\classes\dto\security\RequestSignatureDto;
-use app\njax\classes\dto\task\request\TaskDefinitionCollectionDto;
-use app\njax\classes\dto\task\request\TaskDefinitionDto;
-use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
-use app\njax\classes\task\TaskId;
-use app\njax\exceptions\task\ValidationException;
+use app\modules\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
+use app\modules\njax\classes\dto\security\RequestSignatureDto;
+use app\modules\njax\classes\dto\task\request\TaskDefinitionCollectionDto;
+use app\modules\njax\classes\dto\task\request\TaskDefinitionDto;
+use app\modules\njax\classes\dto\task\queue\TaskIdCollectionDto;
+use app\modules\njax\classes\task\TaskId;
+use app\modules\njax\exceptions\task\ValidationException;
 
 /**
  * Маппер запроса пакетной обработки задач.

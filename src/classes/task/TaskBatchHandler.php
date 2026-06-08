@@ -2,32 +2,32 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\task;
+namespace app\modules\njax\classes\task;
 
-use app\njax\classes\dto\task\response\AcceptedTaskCollectionDto;
-use app\njax\classes\dto\task\response\AcceptedTaskDto;
-use app\njax\classes\dto\task\response\CancelledTaskCollectionDto;
-use app\njax\classes\dto\task\response\CancelledTaskDto;
-use app\njax\classes\dto\security\AuthorizationRequestDto;
-use app\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
-use app\njax\classes\dto\task\response\CompletedTaskCollectionDto;
-use app\njax\classes\dto\http\RequestContextDto;
-use app\njax\classes\dto\task\queue\StoredTaskResultDto;
-use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
-use app\njax\classes\dto\task\response\TaskBatchResponseDto;
-use app\njax\classes\dto\task\response\UnknownTaskCollectionDto;
-use app\njax\classes\dto\task\response\UnknownTaskDto;
-use app\njax\classes\dto\task\response\ValidationErrorCollectionDto;
-use app\njax\classes\dto\task\response\ValidationErrorDto;
-use app\njax\exceptions\security\AuthorizationException;
-use app\njax\exceptions\security\SignatureException;
-use app\njax\exceptions\task\ValidationException;
-use app\njax\interfaces\security\AuthorizationProviderInterface;
-use app\njax\interfaces\security\RequestSignatureProviderInterface;
-use app\njax\interfaces\task\command\TaskCommandRegistryInterface;
-use app\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
-use app\njax\interfaces\task\queue\TaskQueueProviderInterface;
-use app\njax\interfaces\task\retention\TaskResultRetentionProviderInterface;
+use app\modules\njax\classes\dto\task\response\AcceptedTaskCollectionDto;
+use app\modules\njax\classes\dto\task\response\AcceptedTaskDto;
+use app\modules\njax\classes\dto\task\response\CancelledTaskCollectionDto;
+use app\modules\njax\classes\dto\task\response\CancelledTaskDto;
+use app\modules\njax\classes\dto\security\AuthorizationRequestDto;
+use app\modules\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
+use app\modules\njax\classes\dto\task\response\CompletedTaskCollectionDto;
+use app\modules\njax\classes\dto\http\RequestContextDto;
+use app\modules\njax\classes\dto\task\queue\StoredTaskResultDto;
+use app\modules\njax\classes\dto\task\queue\TaskIdCollectionDto;
+use app\modules\njax\classes\dto\task\response\TaskBatchResponseDto;
+use app\modules\njax\classes\dto\task\response\UnknownTaskCollectionDto;
+use app\modules\njax\classes\dto\task\response\UnknownTaskDto;
+use app\modules\njax\classes\dto\task\response\ValidationErrorCollectionDto;
+use app\modules\njax\classes\dto\task\response\ValidationErrorDto;
+use app\modules\njax\exceptions\security\AuthorizationException;
+use app\modules\njax\exceptions\security\SignatureException;
+use app\modules\njax\exceptions\task\ValidationException;
+use app\modules\njax\interfaces\security\AuthorizationProviderInterface;
+use app\modules\njax\interfaces\security\RequestSignatureProviderInterface;
+use app\modules\njax\interfaces\task\command\TaskCommandRegistryInterface;
+use app\modules\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
+use app\modules\njax\interfaces\task\queue\TaskQueueProviderInterface;
+use app\modules\njax\interfaces\task\retention\TaskResultRetentionProviderInterface;
 
 /**
  * Оркестратор серверной обработки пакетного запроса задач.

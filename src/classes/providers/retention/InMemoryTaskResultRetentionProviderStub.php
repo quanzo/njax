@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\providers\retention;
+namespace app\modules\njax\classes\providers\retention;
 
-use app\njax\classes\dto\task\response\CompletedTaskCollectionDto;
-use app\njax\classes\dto\task\response\CompletedTaskDto;
-use app\njax\classes\dto\task\queue\StoredTaskResultDto;
-use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
-use app\njax\classes\task\TaskId;
-use app\njax\enums\UnknownTaskReasonEnum;
-use app\njax\interfaces\task\retention\TaskResultRetentionProviderInterface;
+use app\modules\njax\classes\dto\task\response\CompletedTaskCollectionDto;
+use app\modules\njax\classes\dto\task\response\CompletedTaskDto;
+use app\modules\njax\classes\dto\task\queue\StoredTaskResultDto;
+use app\modules\njax\classes\dto\task\queue\TaskIdCollectionDto;
+use app\modules\njax\classes\task\TaskId;
+use app\modules\njax\enums\UnknownTaskReasonEnum;
+use app\modules\njax\interfaces\task\retention\TaskResultRetentionProviderInterface;
 
 /**
  * In-memory stub провайдера хранения результатов задач.

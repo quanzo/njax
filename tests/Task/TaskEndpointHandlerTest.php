@@ -4,24 +4,24 @@ declare(strict_types=1);
 
 namespace Tests\Task;
 
-use app\njax\classes\adapters\http\TaskBatchRequestMapper;
-use app\njax\commands\EchoTaskCommand;
-use app\njax\commands\SumTaskCommand;
-use app\njax\classes\commands\TaskCommandRegistry;
-use app\njax\classes\dto\http\RequestContextDto;
-use app\njax\classes\dto\http\RequestDto;
-use app\njax\classes\providers\executor\CommandRegistryTaskMethodExecutorProvider;
-use app\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
-use app\njax\classes\providers\authorization\ContextUserAuthorizationProviderStub;
-use app\njax\classes\providers\signature\HmacSha256SignatureProviderStub;
-use app\njax\classes\providers\queue\InMemoryTaskQueueProviderStub;
-use app\njax\classes\providers\retention\InMemoryTaskResultRetentionProviderStub;
-use app\njax\classes\providers\taskid\IncrementalTaskIdGeneratorStub;
-use app\njax\classes\providers\signature\NullSignatureProvider;
-use app\njax\classes\task\TaskBatchHandler;
-use app\njax\classes\task\TaskBatchHandlerConfigDto;
-use app\njax\classes\task\TaskEndpointHandler;
-use app\njax\helpers\PayloadCanonicalizerHelper;
+use app\modules\njax\classes\adapters\http\TaskBatchRequestMapper;
+use app\modules\njax\commands\EchoTaskCommand;
+use app\modules\njax\commands\SumTaskCommand;
+use app\modules\njax\classes\commands\TaskCommandRegistry;
+use app\modules\njax\classes\dto\http\RequestContextDto;
+use app\modules\njax\classes\dto\http\RequestDto;
+use app\modules\njax\classes\providers\executor\CommandRegistryTaskMethodExecutorProvider;
+use app\modules\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
+use app\modules\njax\classes\providers\authorization\ContextUserAuthorizationProviderStub;
+use app\modules\njax\classes\providers\signature\HmacSha256SignatureProviderStub;
+use app\modules\njax\classes\providers\queue\InMemoryTaskQueueProviderStub;
+use app\modules\njax\classes\providers\retention\InMemoryTaskResultRetentionProviderStub;
+use app\modules\njax\classes\providers\taskid\IncrementalTaskIdGeneratorStub;
+use app\modules\njax\classes\providers\signature\NullSignatureProvider;
+use app\modules\njax\classes\task\TaskBatchHandler;
+use app\modules\njax\classes\task\TaskBatchHandlerConfigDto;
+use app\modules\njax\classes\task\TaskEndpointHandler;
+use app\modules\njax\helpers\PayloadCanonicalizerHelper;
 use PHPUnit\Framework\TestCase;
 
 /**

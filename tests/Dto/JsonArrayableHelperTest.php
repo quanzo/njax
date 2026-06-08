@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Dto;
 
-use app\njax\classes\dto\task\request\TaskDefinitionDto;
-use app\njax\classes\dto\task\response\AcceptedTaskCollectionDto;
-use app\njax\classes\dto\task\response\AcceptedTaskDto;
-use app\njax\classes\task\TaskId;
-use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
-use app\njax\helpers\JsonArrayableHelper;
-use app\njax\interfaces\serialization\IJsonArrayable;
-use app\njax\traits\serialization\ArrayableFromJsonTrait;
+use app\modules\njax\classes\dto\task\request\TaskDefinitionDto;
+use app\modules\njax\classes\dto\task\response\AcceptedTaskCollectionDto;
+use app\modules\njax\classes\dto\task\response\AcceptedTaskDto;
+use app\modules\njax\classes\task\TaskId;
+use app\modules\njax\classes\dto\task\queue\TaskIdCollectionDto;
+use app\modules\njax\helpers\JsonArrayableHelper;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\traits\serialization\ArrayableFromJsonTrait;
 use PHPUnit\Framework\TestCase;
 
 /**

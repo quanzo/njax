@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\providers\queue;
+namespace app\modules\njax\classes\providers\queue;
 
-use app\njax\classes\dto\task\queue\QueuedTaskDto;
-use app\njax\classes\dto\task\request\TaskDefinitionDto;
-use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
-use app\njax\classes\task\TaskId;
-use app\njax\interfaces\task\taskid\TaskIdGeneratorInterface;
-use app\njax\interfaces\task\queue\TaskQueueProviderInterface;
+use app\modules\njax\classes\dto\task\queue\QueuedTaskDto;
+use app\modules\njax\classes\dto\task\request\TaskDefinitionDto;
+use app\modules\njax\classes\dto\task\queue\TaskIdCollectionDto;
+use app\modules\njax\classes\task\TaskId;
+use app\modules\njax\interfaces\task\taskid\TaskIdGeneratorInterface;
+use app\modules\njax\interfaces\task\queue\TaskQueueProviderInterface;
 
 /**
  * In-memory stub провайдера очереди задач.
  * Хранит поставленные в очередь задачи в памяти и предоставляет операции извлечения/проверки ожидания.
  * Пример:
- * use app\njax\classes\providers\taskid\IncrementalTaskIdGeneratorStub;
+ * use app\modules\njax\classes\providers\taskid\IncrementalTaskIdGeneratorStub;
  * $queueProvider = new InMemoryTaskQueueProviderStub(new IncrementalTaskIdGeneratorStub());
  */
 final class InMemoryTaskQueueProviderStub implements TaskQueueProviderInterface

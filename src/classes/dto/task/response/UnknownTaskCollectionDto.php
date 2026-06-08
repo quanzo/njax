@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\task\response;
+namespace app\modules\njax\classes\dto\task\response;
 
-use app\njax\interfaces\serialization\IJsonArrayable;
-use app\njax\traits\serialization\ArrayableFromJsonTrait;
-use app\njax\traits\serialization\JsonArrayableCollectionTrait;
-use app\njax\traits\collection\CountableIteratorAggregateTrait;
-use app\njax\traits\collection\ImmutableAppendableCollectionTrait;
-use app\njax\traits\collection\TypedItemsCollectionTrait;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\traits\serialization\ArrayableFromJsonTrait;
+use app\modules\njax\traits\serialization\JsonArrayableCollectionTrait;
+use app\modules\njax\traits\collection\CountableIteratorAggregateTrait;
+use app\modules\njax\traits\collection\ImmutableAppendableCollectionTrait;
+use app\modules\njax\traits\collection\TypedItemsCollectionTrait;
 
 /**
  * DTO коллекции неизвестных задач.

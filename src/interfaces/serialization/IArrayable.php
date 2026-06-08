@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\interfaces\serialization;
+namespace app\modules\njax\interfaces\serialization;
 
 /**
  * Базовый контракт DTO, которые могут быть преобразованы в PHP-массив.

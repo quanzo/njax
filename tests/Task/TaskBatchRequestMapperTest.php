@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Task;
 
-use app\njax\classes\adapters\http\TaskBatchRequestMapper;
-use app\njax\exceptions\task\ValidationException;
+use app\modules\njax\classes\adapters\http\TaskBatchRequestMapper;
+use app\modules\njax\exceptions\task\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

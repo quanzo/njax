@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\task;
+namespace app\modules\njax\classes\task;
 
 /**
  * DTO конфигурации обработчика пакетной обработки задач.

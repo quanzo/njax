@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\security;
+namespace app\modules\njax\classes\dto\security;
 
 /**
  * DTO результата проверки подписи.

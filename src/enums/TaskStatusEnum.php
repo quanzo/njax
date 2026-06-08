@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\enums;
+namespace app\modules\njax\enums;
 
 /**
  * Enum статуса задачи.

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\task\queue;
+namespace app\modules\njax\classes\dto\task\queue;
 
-use app\njax\classes\task\TaskId;
-use app\njax\interfaces\serialization\IJsonArrayable;
-use app\njax\traits\collection\CountableIteratorAggregateTrait;
-use app\njax\traits\collection\TypedItemsCollectionTrait;
+use app\modules\njax\classes\task\TaskId;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\traits\collection\CountableIteratorAggregateTrait;
+use app\modules\njax\traits\collection\TypedItemsCollectionTrait;
 
 /**
  * DTO коллекции идентификаторов задач.

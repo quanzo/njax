@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\task\response;
+namespace app\modules\njax\classes\dto\task\response;
 
-use app\njax\classes\task\TaskId;
-use app\njax\enums\TaskStatusEnum;
-use app\njax\helpers\PayloadCanonicalizerHelper;
-use app\njax\interfaces\serialization\IJsonArrayable;
-use app\njax\traits\serialization\ArrayableFromJsonTrait;
+use app\modules\njax\classes\task\TaskId;
+use app\modules\njax\enums\TaskStatusEnum;
+use app\modules\njax\helpers\PayloadCanonicalizerHelper;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\traits\serialization\ArrayableFromJsonTrait;
 
 /**
  * DTO завершенной задачи.

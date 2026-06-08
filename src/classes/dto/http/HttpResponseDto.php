@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\http;
+namespace app\modules\njax\classes\dto\http;
 
 /**
  * DTO HTTP-ответа.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\traits\collection;
+namespace app\modules\njax\traits\collection;
 
 /**
  * Общая реализация Countable и IteratorAggregate для DTO-коллекций.

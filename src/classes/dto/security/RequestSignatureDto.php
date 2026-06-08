@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\security;
+namespace app\modules\njax\classes\dto\security;
 
-use app\njax\interfaces\serialization\IJsonArrayable;
-use app\njax\traits\serialization\ArrayableFromJsonTrait;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\traits\serialization\ArrayableFromJsonTrait;
 
 /**
  * DTO подписи запроса.

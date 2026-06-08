@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace app\njax\interfaces\security;
+namespace app\modules\njax\interfaces\security;
 
-use app\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
-use app\njax\classes\dto\http\RequestContextDto;
-use app\njax\classes\dto\security\SignatureVerificationResultDto;
+use app\modules\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
+use app\modules\njax\classes\dto\http\RequestContextDto;
+use app\modules\njax\classes\dto\security\SignatureVerificationResultDto;
 
 /**
  * Интерфейс провайдера подписи запроса.

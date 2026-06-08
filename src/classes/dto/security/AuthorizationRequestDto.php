@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\security;
+namespace app\modules\njax\classes\dto\security;
 
-use app\njax\classes\dto\http\RequestContextDto;
+use app\modules\njax\classes\dto\http\RequestContextDto;
 
 /**
  * DTO запроса авторизации.

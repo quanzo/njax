@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\task\request;
+namespace app\modules\njax\classes\dto\task\request;
 
-use app\njax\helpers\PayloadCanonicalizerHelper;
-use app\njax\interfaces\serialization\IJsonArrayable;
-use app\njax\traits\serialization\ArrayableFromJsonTrait;
+use app\modules\njax\helpers\PayloadCanonicalizerHelper;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\traits\serialization\ArrayableFromJsonTrait;
 
 /**
  * DTO определения задачи.

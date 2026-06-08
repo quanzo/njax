@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace app\njax\interfaces\task\queue;
+namespace app\modules\njax\interfaces\task\queue;
 
-use app\njax\classes\dto\task\queue\QueuedTaskDto;
-use app\njax\classes\dto\task\request\TaskDefinitionDto;
-use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
-use app\njax\classes\task\TaskId;
+use app\modules\njax\classes\dto\task\queue\QueuedTaskDto;
+use app\modules\njax\classes\dto\task\request\TaskDefinitionDto;
+use app\modules\njax\classes\dto\task\queue\TaskIdCollectionDto;
+use app\modules\njax\classes\task\TaskId;
 
 /**
  * Интерфейс провайдера очереди задач.

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\providers\signature;
+namespace app\modules\njax\classes\providers\signature;
 
-use app\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
-use app\njax\classes\dto\http\RequestContextDto;
-use app\njax\classes\dto\security\SignatureVerificationResultDto;
-use app\njax\interfaces\security\RequestSignatureProviderInterface;
+use app\modules\njax\classes\dto\task\request\ClientTaskBatchRequestDto;
+use app\modules\njax\classes\dto\http\RequestContextDto;
+use app\modules\njax\classes\dto\security\SignatureVerificationResultDto;
+use app\modules\njax\interfaces\security\RequestSignatureProviderInterface;
 
 /**
  * Null-провайдер подписи.

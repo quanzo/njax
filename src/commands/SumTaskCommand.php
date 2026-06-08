@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace app\njax\commands;
+namespace app\modules\njax\commands;
 
-use app\njax\classes\commands\AbstractTaskCommand;
-use app\njax\exceptions\task\ValidationException;
+use app\modules\njax\classes\commands\AbstractTaskCommand;
+use app\modules\njax\exceptions\task\ValidationException;
 
 /**
  * Команда вычисления суммы набора чисел.

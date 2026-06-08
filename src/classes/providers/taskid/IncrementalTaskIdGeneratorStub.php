@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\providers\taskid;
+namespace app\modules\njax\classes\providers\taskid;
 
-use app\njax\classes\task\TaskId;
-use app\njax\interfaces\task\taskid\TaskIdGeneratorInterface;
+use app\modules\njax\classes\task\TaskId;
+use app\modules\njax\interfaces\task\taskid\TaskIdGeneratorInterface;
 
 /**
  * Stub инкрементального генератора id задач.

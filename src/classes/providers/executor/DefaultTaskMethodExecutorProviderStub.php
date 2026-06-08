@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\providers\executor;
+namespace app\modules\njax\classes\providers\executor;
 
-use app\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
+use app\modules\njax\interfaces\task\executor\TaskMethodExecutorProviderInterface;
 
 /**
  * Stub провайдера выполнения методов задач по умолчанию.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace app\njax\interfaces\task\command;
+namespace app\modules\njax\interfaces\task\command;
 
 /**
  * Контракт прикладной команды, доступной для постановки и исполнения в task-endpoint.

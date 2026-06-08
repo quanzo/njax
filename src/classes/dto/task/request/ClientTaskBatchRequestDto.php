@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace app\njax\classes\dto\task\request;
+namespace app\modules\njax\classes\dto\task\request;
 
-use app\njax\classes\dto\security\RequestSignatureDto;
-use app\njax\classes\dto\task\queue\TaskIdCollectionDto;
-use app\njax\helpers\JsonArrayableHelper;
-use app\njax\interfaces\serialization\IJsonArrayable;
-use app\njax\traits\serialization\ArrayableFromJsonTrait;
+use app\modules\njax\classes\dto\security\RequestSignatureDto;
+use app\modules\njax\classes\dto\task\queue\TaskIdCollectionDto;
+use app\modules\njax\helpers\JsonArrayableHelper;
+use app\modules\njax\interfaces\serialization\IJsonArrayable;
+use app\modules\njax\traits\serialization\ArrayableFromJsonTrait;
 
 /**
  * DTO пакетного запроса задач клиента.

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace app\njax\exceptions\security;
+namespace app\modules\njax\exceptions\security;
 
-use app\njax\exceptions\task\TaskSystemException;
+use app\modules\njax\exceptions\task\TaskSystemException;
 
 /**
  * Исключение подписи.
